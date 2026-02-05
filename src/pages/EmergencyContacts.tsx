@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -17,15 +17,39 @@ const EmergencyContacts = () => {
     { name: "", phone: "" },
   ]);
 
+  // Load saved contacts on mount
+  useEffect(() => {
+    const saved = localStorage.getItem("guardian_contacts");
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setContacts(parsed);
+        }
+      } catch (e) {
+        console.error("Failed to parse saved contacts");
+      }
+    }
+  }, []);
+
+  // Save contacts whenever they change
+  const saveContacts = (updatedContacts: Contact[]) => {
+    localStorage.setItem("guardian_contacts", JSON.stringify(updatedContacts));
+  };
+
   const addContact = () => {
     if (contacts.length < 3) {
-      setContacts([...contacts, { name: "", phone: "" }]);
+      const updated = [...contacts, { name: "", phone: "" }];
+      setContacts(updated);
+      saveContacts(updated);
     }
   };
 
   const removeContact = (index: number) => {
     if (contacts.length > 1) {
-      setContacts(contacts.filter((_, i) => i !== index));
+      const updated = contacts.filter((_, i) => i !== index);
+      setContacts(updated);
+      saveContacts(updated);
     }
   };
 
@@ -33,6 +57,7 @@ const EmergencyContacts = () => {
     const updated = [...contacts];
     updated[index][field] = value;
     setContacts(updated);
+    saveContacts(updated);
   };
 
   const hasValidContact = contacts.some(
@@ -44,10 +69,10 @@ const EmergencyContacts = () => {
       (c) => c.name.trim() !== "" && c.phone.trim() !== ""
     );
     
-    const disability = localStorage.getItem("guardian_disability") || "";
+    const disabilities = localStorage.getItem("guardian_disabilities");
     
     const data = {
-      disability,
+      disabilities: disabilities ? JSON.parse(disabilities) : [],
       contacts: validContacts,
       onboardingComplete: true,
     };
