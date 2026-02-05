@@ -74,6 +74,7 @@ const Home = () => {
   const [currentProfile, setCurrentProfile] = useState<string>("");
   const [showSettings, setShowSettings] = useState(false);
   const [smsStatus, setSmsStatus] = useState({ configured: false, contactCount: 0 });
+  const [activityLog, setActivityLog] = useState<DetectionLogEntry[]>([]);
   const { alertState, triggerPersonalizedAlert, dismissAlert } = usePersonalizedAlert();
   const { notifyEmergencyContacts, isSending, resetSmsFlag } = useSmsNotification();
 
@@ -107,6 +108,9 @@ const Home = () => {
       configured: !!twilioSettings,
       contactCount: contacts.length,
     });
+
+    // Load activity log
+    setActivityLog(getDetectionLog());
   }, [navigate, showSettings]);
 
   const handleProfileChange = (value: string) => {
@@ -117,18 +121,28 @@ const Home = () => {
     }
   };
 
-  const handleEmergencyTrigger = async (type: EmergencyType) => {
+  // Manual emergency trigger (backup method)
+  const handleManualTrigger = async (type: EmergencyType) => {
     // Unlock audio for browsers that require user interaction
     unlockAudioForEmergency();
     triggerPersonalizedAlert(type);
+    
+    // Log the manual trigger
+    const updated = addDetectionEntry(type, "manual");
+    setActivityLog(updated);
     
     // Send SMS to emergency contacts
     await notifyEmergencyContacts(type);
   };
 
-  // Callback for AudioMonitor when fire alarm is detected
-  const handleAudioDetectedAlert = useCallback((type: EmergencyType) => {
+  // Automatic detection callback (primary method)
+  const handleAutoDetectedAlert = useCallback((type: EmergencyType) => {
+    // Trigger alert immediately
     triggerPersonalizedAlert(type);
+    
+    // Log the automatic detection
+    const updated = addDetectionEntry(type, "automatic");
+    setActivityLog(updated);
   }, [triggerPersonalizedAlert]);
 
   const getProfileLabel = () => {
