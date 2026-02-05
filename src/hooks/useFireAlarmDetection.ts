@@ -242,6 +242,7 @@ export const useFireAlarmDetection = ({
         permissionDenied: false,
         detectionStatus: "idle",
         detectionProgress: 0,
+        cooldownRemaining: 0,
       });
 
       // Start analysis loop
@@ -256,6 +257,7 @@ export const useFireAlarmDetection = ({
           permissionDenied: true,
           detectionStatus: "idle",
           detectionProgress: 0,
+          cooldownRemaining: 0,
         });
       } else if (error.name === "NotFoundError") {
         setState({
@@ -264,6 +266,7 @@ export const useFireAlarmDetection = ({
           permissionDenied: false,
           detectionStatus: "idle",
           detectionProgress: 0,
+          cooldownRemaining: 0,
         });
       } else {
         setState({
@@ -272,6 +275,7 @@ export const useFireAlarmDetection = ({
           permissionDenied: false,
           detectionStatus: "idle",
           detectionProgress: 0,
+          cooldownRemaining: 0,
         });
       }
     }
