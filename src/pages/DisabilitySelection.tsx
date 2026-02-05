@@ -38,6 +38,7 @@ const disabilityOptions: DisabilityOption[] = [
 
 const DisabilitySelection = () => {
   const navigate = useNavigate();
+  useOnboardingRedirect(); // Redirect if already onboarded
   const [selected, setSelected] = useState<string[]>([]);
 
   // Load saved selection on mount
