@@ -17,6 +17,8 @@ interface UseFireAlarmDetectionOptions {
   enabled?: boolean;
 }
 
+// Keep callback refs stable to avoid stale closures in requestAnimationFrame loop
+
 // Fire alarm frequency range (Hz)
 const MIN_FREQUENCY = 3000;
 const MAX_FREQUENCY = 4000;
