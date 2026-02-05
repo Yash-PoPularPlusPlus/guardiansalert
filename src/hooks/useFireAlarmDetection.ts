@@ -228,6 +228,8 @@ export const useFireAlarmDetection = ({
         isListening: true,
         error: null,
         permissionDenied: false,
+        detectionStatus: "idle",
+        detectionProgress: 0,
       });
 
       // Start analysis loop
@@ -240,18 +242,24 @@ export const useFireAlarmDetection = ({
           isListening: false,
           error: "Guardian Alert needs microphone access to detect fire alarms. Please enable in browser settings.",
           permissionDenied: true,
+          detectionStatus: "idle",
+          detectionProgress: 0,
         });
       } else if (error.name === "NotFoundError") {
         setState({
           isListening: false,
           error: "No microphone detected",
           permissionDenied: false,
+          detectionStatus: "idle",
+          detectionProgress: 0,
         });
       } else {
         setState({
           isListening: false,
           error: "Could not access microphone",
           permissionDenied: false,
+          detectionStatus: "idle",
+          detectionProgress: 0,
         });
       }
     }
