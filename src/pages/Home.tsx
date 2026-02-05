@@ -1,13 +1,15 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Shield, CheckCircle, AlertTriangle } from "lucide-react";
+import { Shield, CheckCircle, AlertTriangle, Volume2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import VisualAlert from "@/components/VisualAlert";
+import AudioAlert from "@/components/AudioAlert";
 
 const Home = () => {
   const navigate = useNavigate();
   const [isComplete, setIsComplete] = useState(false);
   const [showVisualAlert, setShowVisualAlert] = useState(false);
+  const [showAudioAlert, setShowAudioAlert] = useState(false);
 
   useEffect(() => {
     const data = localStorage.getItem("guardian_data");
@@ -33,6 +35,13 @@ const Home = () => {
         />
       )}
       
+      {showAudioAlert && (
+        <AudioAlert 
+          emergencyType="fire" 
+          onDismiss={() => setShowAudioAlert(false)} 
+        />
+      )}
+      
       <div className="guardian-container items-center justify-center text-center">
         <div className="flex flex-col items-center gap-6 max-w-sm">
           <div className="w-24 h-24 rounded-full bg-[hsl(var(--guardian-success-light))] flex items-center justify-center animate-in zoom-in duration-500">
@@ -53,14 +62,25 @@ const Home = () => {
             <span className="text-sm font-medium text-primary">Guardian Alert Active</span>
           </div>
 
-          <Button 
-            variant="destructive"
-            className="mt-8 gap-2"
-            onClick={() => setShowVisualAlert(true)}
-          >
-            <AlertTriangle className="w-4 h-4" />
-            Test Visual Alert (Deaf)
-          </Button>
+          <div className="flex flex-col gap-3 mt-8 w-full">
+            <Button 
+              variant="destructive"
+              className="gap-2"
+              onClick={() => setShowVisualAlert(true)}
+            >
+              <AlertTriangle className="w-4 h-4" />
+              Test Visual Alert (Deaf)
+            </Button>
+            
+            <Button 
+              variant="destructive"
+              className="gap-2"
+              onClick={() => setShowAudioAlert(true)}
+            >
+              <Volume2 className="w-4 h-4" />
+              Test Audio Alert (Blind)
+            </Button>
+          </div>
         </div>
       </div>
     </>
