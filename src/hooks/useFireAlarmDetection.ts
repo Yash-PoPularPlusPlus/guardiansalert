@@ -174,21 +174,16 @@ export const useFireAlarmDetection = ({
         if (detectionDuration >= DETECTION_DURATION_MS && peakCountRef.current >= 4) {
           if (!hasTriggeredRef.current) {
             hasTriggeredRef.current = true;
-            cooldownRef.current = now + 30000; // 30 second cooldown
+            cooldownRef.current = now + COOLDOWN_DURATION_MS;
             onFireAlarmDetected();
             
-            // Reset after triggering
+            // Reset trigger flag after short delay (keeps cooldown active)
             setTimeout(() => {
               hasTriggeredRef.current = false;
               peakCountRef.current = 0;
               detectionStartRef.current = null;
               lastPeakTimeRef.current = null;
               wasDetectingRef.current = false;
-              setState(prev => ({
-                ...prev,
-                detectionStatus: "idle",
-                detectionProgress: 0,
-              }));
             }, 5000);
           }
         }
