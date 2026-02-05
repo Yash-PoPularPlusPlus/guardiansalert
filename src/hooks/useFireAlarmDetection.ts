@@ -133,12 +133,26 @@ export const useFireAlarmDetection = ({
       } else {
         detectionStartRef.current = now;
         peakCountRef.current = 1;
+        // Notify when detection starts
+        if (!wasDetectingRef.current) {
+          wasDetectingRef.current = true;
+          onDetectionStart?.();
+        }
       }
       lastPeakTimeRef.current = now;
 
       // Check if detection criteria met
       if (detectionStartRef.current) {
         const detectionDuration = now - detectionStartRef.current;
+        const progress = Math.min(100, (detectionDuration / DETECTION_DURATION_MS) * 100);
+        
+        // Update detection status
+        setState(prev => ({
+          ...prev,
+          detectionStatus: progress >= 100 ? "confirmed" : "detecting",
+          detectionProgress: progress,
+        }));
+
         // Need at least 2 seconds of detection with multiple beeps
         if (detectionDuration >= DETECTION_DURATION_MS && peakCountRef.current >= 4) {
           if (!hasTriggeredRef.current) {
@@ -152,6 +166,12 @@ export const useFireAlarmDetection = ({
               peakCountRef.current = 0;
               detectionStartRef.current = null;
               lastPeakTimeRef.current = null;
+              wasDetectingRef.current = false;
+              setState(prev => ({
+                ...prev,
+                detectionStatus: "idle",
+                detectionProgress: 0,
+              }));
             }, 5000);
           }
         }
@@ -162,6 +182,12 @@ export const useFireAlarmDetection = ({
         peakCountRef.current = 0;
         detectionStartRef.current = null;
         lastPeakTimeRef.current = null;
+        wasDetectingRef.current = false;
+        setState(prev => ({
+          ...prev,
+          detectionStatus: "idle",
+          detectionProgress: 0,
+        }));
       }
     }
 
