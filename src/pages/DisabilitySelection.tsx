@@ -15,7 +15,6 @@ const disabilityOptions: DisabilityOption[] = [
   { id: "nonverbal", icon: "🗣️", label: "Cannot speak" },
   { id: "mobility", icon: "♿", label: "Mobility limitations" },
   { id: "cognitive", icon: "🧠", label: "Cognitive disability" },
-  { id: "multiple", icon: "✅", label: "Multiple disabilities" },
 ];
 
 const DisabilitySelection = () => {
