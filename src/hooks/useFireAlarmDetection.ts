@@ -17,6 +17,8 @@ interface UseFireAlarmDetectionOptions {
   enabled?: boolean;
 }
 
+// Keep callback refs stable to avoid stale closures in requestAnimationFrame loop
+
 // Fire alarm frequency range (Hz)
 const MIN_FREQUENCY = 3000;
 const MAX_FREQUENCY = 4000;
@@ -53,6 +55,16 @@ export const useFireAlarmDetection = ({
   const cooldownRef = useRef<number>(0);
   const wasDetectingRef = useRef<boolean>(false);
   const cooldownIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  
+  // Store callbacks in refs to avoid stale closures in requestAnimationFrame loop
+  const onFireAlarmDetectedRef = useRef(onFireAlarmDetected);
+  const onDetectionStartRef = useRef(onDetectionStart);
+  
+  // Keep refs updated
+  useEffect(() => {
+    onFireAlarmDetectedRef.current = onFireAlarmDetected;
+    onDetectionStartRef.current = onDetectionStart;
+  }, [onFireAlarmDetected, onDetectionStart]);
 
   // Calculate frequency bin index for a given frequency
   const getFrequencyBinIndex = useCallback((frequency: number, sampleRate: number, fftSize: number) => {
@@ -153,7 +165,7 @@ export const useFireAlarmDetection = ({
         // Notify when detection starts
         if (!wasDetectingRef.current) {
           wasDetectingRef.current = true;
-          onDetectionStart?.();
+          onDetectionStartRef.current?.();
         }
       }
       lastPeakTimeRef.current = now;
@@ -175,7 +187,7 @@ export const useFireAlarmDetection = ({
           if (!hasTriggeredRef.current) {
             hasTriggeredRef.current = true;
             cooldownRef.current = now + COOLDOWN_DURATION_MS;
-            onFireAlarmDetected();
+            onFireAlarmDetectedRef.current();
             
             // Reset trigger flag after short delay (keeps cooldown active)
             setTimeout(() => {
@@ -204,7 +216,7 @@ export const useFireAlarmDetection = ({
     }
 
     animationFrameRef.current = requestAnimationFrame(analyzeAudio);
-  }, [enabled, isFireAlarmFrequency, onFireAlarmDetected]);
+  }, [enabled, isFireAlarmFrequency]);
 
   // Start listening
   const startListening = useCallback(async () => {
