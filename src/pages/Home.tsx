@@ -145,17 +145,20 @@ const Home = () => {
   };
 
   // Automatic detection callback (primary method)
-  const handleAutoDetectedAlert = useCallback(async (type: EmergencyType) => {
+  // Using refs to avoid stale closure issues with async audio detection
+  const handleAutoDetectedAlert = useCallback((type: EmergencyType) => {
+    console.log("[Guardian] Auto-detected alert triggered:", type);
+    
     // Trigger alert immediately - this shows the personalized alert UI
-    triggerPersonalizedAlert(type);
+    triggerAlertRef.current(type);
     
     // Log the automatic detection
     const updated = addDetectionEntry(type, "automatic");
     setActivityLog(updated);
     
     // Send SMS to emergency contacts (same as manual trigger)
-    await notifyEmergencyContacts(type);
-  }, [triggerPersonalizedAlert, notifyEmergencyContacts]);
+    notifyContactsRef.current(type);
+  }, []);
 
   const getProfileLabel = () => {
     if (currentProfile === "custom") return "Custom";
