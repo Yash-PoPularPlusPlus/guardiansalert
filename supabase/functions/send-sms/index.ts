@@ -57,8 +57,8 @@ serve(async (req) => {
 
     for (const contact of contactsToNotify) {
       const messageBody = isTest 
-        ? `🔔 TEST MESSAGE\n\nThis is a test from Guardian Alert.\nYour emergency notification system is working correctly.`
-        : `🚨 EMERGENCY ALERT\n\n${userName} needs help!\n\nEmergency: ${emergencyType.toUpperCase()}\nTime: ${currentTime}\nLocation: ${locationUrl}\n\nPlease check on them immediately.`;
+        ? `🔔 TEST: Guardian Alert is working!`
+        : `🚨 EMERGENCY\n\n${userName} needs help!\nType: ${emergencyType.toUpperCase()}\nLocation: ${locationUrl}\n\nCheck on them NOW.`;
 
       try {
         const twilioUrl = `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages.json`;
