@@ -1,7 +1,6 @@
 import { useEffect, useCallback, useState } from "react";
 import { Mic, MicOff, AlertCircle, Flame, Shield } from "lucide-react";
 import { useFireAlarmDetection } from "@/hooks/useFireAlarmDetection";
-import { useSmsNotification } from "@/hooks/useSmsNotification";
 import { unlockAudioForEmergency } from "@/components/AudioAlert";
 import { toast } from "@/hooks/use-toast";
 
@@ -11,32 +10,30 @@ interface AudioMonitorProps {
 }
 
 const AudioMonitor = ({ enabled, onAlertTriggered }: AudioMonitorProps) => {
-  const { notifyEmergencyContacts } = useSmsNotification();
   const [showDetectionAlert, setShowDetectionAlert] = useState(false);
 
-  const handleFireAlarmDetected = useCallback(async () => {
-    // Show detection state for 2 seconds before triggering full alert
+  const handleFireAlarmDetected = useCallback(() => {
+    // Show confirmed state briefly
     setShowDetectionAlert(true);
     
-    setTimeout(async () => {
+    // Show detection toast
+    toast({
+      title: "🔊 Fire alarm detected!",
+      description: "Activating emergency alert...",
+    });
+
+    // Unlock audio for browsers
+    unlockAudioForEmergency();
+
+    // Trigger the personalized alert through parent IMMEDIATELY
+    // Parent handles SMS, logging, and all alert UI
+    onAlertTriggered("fire");
+    
+    // Reset detection alert state after a short delay
+    setTimeout(() => {
       setShowDetectionAlert(false);
-      
-      // Show detection toast
-      toast({
-        title: "🔊 Fire alarm detected!",
-        description: "Activating emergency alert...",
-      });
-
-      // Unlock audio for browsers
-      unlockAudioForEmergency();
-
-      // Trigger the personalized alert through parent
-      onAlertTriggered("fire");
-
-      // Send SMS to emergency contacts
-      await notifyEmergencyContacts("fire");
     }, 2000);
-  }, [onAlertTriggered, notifyEmergencyContacts]);
+  }, [onAlertTriggered]);
 
   const { isListening, error, permissionDenied, detectionStatus, detectionProgress } = useFireAlarmDetection({
     onFireAlarmDetected: handleFireAlarmDetected,

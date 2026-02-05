@@ -136,14 +136,17 @@ const Home = () => {
   };
 
   // Automatic detection callback (primary method)
-  const handleAutoDetectedAlert = useCallback((type: EmergencyType) => {
-    // Trigger alert immediately
+  const handleAutoDetectedAlert = useCallback(async (type: EmergencyType) => {
+    // Trigger alert immediately - this shows the personalized alert UI
     triggerPersonalizedAlert(type);
     
     // Log the automatic detection
     const updated = addDetectionEntry(type, "automatic");
     setActivityLog(updated);
-  }, [triggerPersonalizedAlert]);
+    
+    // Send SMS to emergency contacts (same as manual trigger)
+    await notifyEmergencyContacts(type);
+  }, [triggerPersonalizedAlert, notifyEmergencyContacts]);
 
   const getProfileLabel = () => {
     if (currentProfile === "custom") return "Custom";
