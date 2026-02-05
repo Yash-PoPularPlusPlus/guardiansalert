@@ -187,7 +187,7 @@ export const useFireAlarmDetection = ({
           if (!hasTriggeredRef.current) {
             hasTriggeredRef.current = true;
             cooldownRef.current = now + COOLDOWN_DURATION_MS;
-            onFireAlarmDetected();
+            onFireAlarmDetectedRef.current();
             
             // Reset trigger flag after short delay (keeps cooldown active)
             setTimeout(() => {
