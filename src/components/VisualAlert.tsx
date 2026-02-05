@@ -6,6 +6,7 @@ type EmergencyType = "fire" | "earthquake" | "flood";
 interface VisualAlertProps {
   emergencyType: EmergencyType;
   onDismiss: () => void;
+  extraMessage?: string;
 }
 
 const emergencyConfig = {
@@ -26,7 +27,7 @@ const emergencyConfig = {
   },
 };
 
-const VisualAlert = ({ emergencyType, onDismiss }: VisualAlertProps) => {
+const VisualAlert = ({ emergencyType, onDismiss, extraMessage }: VisualAlertProps) => {
   const vibrationIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
@@ -95,6 +96,18 @@ const VisualAlert = ({ emergencyType, onDismiss }: VisualAlertProps) => {
         >
           {config.action}
         </p>
+        
+        {extraMessage && (
+          <p 
+            className="text-white/90 font-medium mt-4"
+            style={{ 
+              fontSize: "20px",
+              textShadow: "1px 1px 3px rgba(0, 0, 0, 0.8)",
+            }}
+          >
+            {extraMessage}
+          </p>
+        )}
       </div>
 
       <Button

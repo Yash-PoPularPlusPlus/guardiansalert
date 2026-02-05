@@ -1,15 +1,64 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Shield, CheckCircle, AlertTriangle, Volume2 } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { Shield, Flame, Globe, Waves } from "lucide-react";
+import { Card, CardContent } from "@/components/ui/card";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import VisualAlert from "@/components/VisualAlert";
 import AudioAlert, { unlockAudioForEmergency } from "@/components/AudioAlert";
+import CognitiveAlert from "@/components/CognitiveAlert";
+import DeafBlindAlert from "@/components/DeafBlindAlert";
+import {
+  usePersonalizedAlert,
+  getDisabilities,
+  setDisabilities,
+  type EmergencyType,
+  type DisabilityType,
+} from "@/hooks/usePersonalizedAlert";
+
+const DEMO_PROFILES: { value: string; label: string; disabilities: DisabilityType[] }[] = [
+  { value: "deaf", label: "Deaf", disabilities: ["deaf"] },
+  { value: "blind", label: "Blind", disabilities: ["blind"] },
+  { value: "deaf-blind", label: "Deaf + Blind", disabilities: ["deaf", "blind"] },
+  { value: "nonverbal", label: "Speech", disabilities: ["nonverbal"] },
+  { value: "cognitive", label: "Cognitive", disabilities: ["cognitive"] },
+  { value: "mobility", label: "Mobility", disabilities: ["mobility"] },
+];
+
+const EMERGENCY_CARDS = [
+  {
+    type: "fire" as EmergencyType,
+    icon: Flame,
+    title: "Fire Emergency",
+    gradient: "from-red-500 to-red-700",
+    hoverGradient: "hover:from-red-600 hover:to-red-800",
+  },
+  {
+    type: "earthquake" as EmergencyType,
+    icon: Globe,
+    title: "Earthquake",
+    gradient: "from-orange-500 to-orange-700",
+    hoverGradient: "hover:from-orange-600 hover:to-orange-800",
+  },
+  {
+    type: "flood" as EmergencyType,
+    icon: Waves,
+    title: "Flood Warning",
+    gradient: "from-blue-500 to-blue-700",
+    hoverGradient: "hover:from-blue-600 hover:to-blue-800",
+  },
+];
 
 const Home = () => {
   const navigate = useNavigate();
   const [isComplete, setIsComplete] = useState(false);
-  const [showVisualAlert, setShowVisualAlert] = useState(false);
-  const [showAudioAlert, setShowAudioAlert] = useState(false);
+  const [currentProfile, setCurrentProfile] = useState<string>("");
+  const { alertState, triggerPersonalizedAlert, dismissAlert } = usePersonalizedAlert();
 
   useEffect(() => {
     const data = localStorage.getItem("guardian_data");
@@ -22,67 +71,132 @@ const Home = () => {
     if (parsed.onboardingComplete) {
       setIsComplete(true);
     }
+
+    // Load current disabilities to show profile
+    const disabilities = getDisabilities();
+    const matchedProfile = DEMO_PROFILES.find(
+      p => JSON.stringify(p.disabilities.sort()) === JSON.stringify(disabilities.sort())
+    );
+    if (matchedProfile) {
+      setCurrentProfile(matchedProfile.value);
+    } else if (disabilities.length > 0) {
+      setCurrentProfile("custom");
+    }
   }, [navigate]);
+
+  const handleProfileChange = (value: string) => {
+    const profile = DEMO_PROFILES.find(p => p.value === value);
+    if (profile) {
+      setDisabilities(profile.disabilities);
+      setCurrentProfile(value);
+    }
+  };
+
+  const handleEmergencyTrigger = (type: EmergencyType) => {
+    // Unlock audio for browsers that require user interaction
+    unlockAudioForEmergency();
+    triggerPersonalizedAlert(type);
+  };
+
+  const getProfileLabel = () => {
+    if (currentProfile === "custom") return "Custom";
+    const profile = DEMO_PROFILES.find(p => p.value === currentProfile);
+    return profile?.label || "Not set";
+  };
 
   if (!isComplete) return null;
 
+  // Render the appropriate alert based on config
+  const renderAlert = () => {
+    if (!alertState.isActive || !alertState.config || !alertState.emergencyType) return null;
+
+    const { config, emergencyType } = alertState;
+
+    if (config.showDeafBlind) {
+      return <DeafBlindAlert emergencyType={emergencyType} onDismiss={dismissAlert} />;
+    }
+
+    if (config.showCognitive) {
+      return <CognitiveAlert emergencyType={emergencyType} onDismiss={dismissAlert} />;
+    }
+
+    return (
+      <>
+        {config.showVisual && (
+          <VisualAlert 
+            emergencyType={emergencyType} 
+            onDismiss={dismissAlert}
+            extraMessage={config.extraMessage}
+          />
+        )}
+        {config.showAudio && (
+          <AudioAlert 
+            emergencyType={emergencyType} 
+            onDismiss={dismissAlert} 
+          />
+        )}
+      </>
+    );
+  };
+
   return (
     <>
-      {showVisualAlert && (
-        <VisualAlert 
-          emergencyType="fire" 
-          onDismiss={() => setShowVisualAlert(false)} 
-        />
-      )}
+      {renderAlert()}
       
-      {showAudioAlert && (
-        <AudioAlert 
-          emergencyType="fire" 
-          onDismiss={() => setShowAudioAlert(false)} 
-        />
-      )}
-      
-      <div className="guardian-container items-center justify-center text-center">
-        <div className="flex flex-col items-center gap-6 max-w-sm">
-          <div className="w-24 h-24 rounded-full bg-[hsl(var(--guardian-success-light))] flex items-center justify-center animate-in zoom-in duration-500">
-            <CheckCircle className="w-12 h-12 text-[hsl(var(--guardian-success))]" />
-          </div>
-          
-          <div className="space-y-3">
-            <h1 className="text-3xl font-bold tracking-tight text-foreground">
-              Setup complete!
-            </h1>
-            <p className="guardian-subtext text-lg">
-              You're protected.
-            </p>
-          </div>
-
-          <div className="flex items-center gap-2 mt-4 px-4 py-2 rounded-full bg-primary/10">
+      <div className="guardian-container items-center text-center">
+        <div className="flex flex-col items-center gap-6 w-full max-w-sm">
+          {/* Status Badge */}
+          <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-primary/10">
             <Shield className="w-5 h-5 text-primary" />
             <span className="text-sm font-medium text-primary">Guardian Alert Active</span>
           </div>
 
-          <div className="flex flex-col gap-3 mt-8 w-full">
-            <Button 
-              variant="destructive"
-              className="gap-2"
-              onClick={() => setShowVisualAlert(true)}
-            >
-              <AlertTriangle className="w-4 h-4" />
-              Test Visual Alert (Deaf)
-            </Button>
+          {/* Current Profile Display */}
+          <div className="w-full p-4 rounded-xl bg-muted/50 border border-border">
+            <p className="text-sm text-muted-foreground mb-1">Current Profile</p>
+            <p className="text-xl font-bold text-foreground">{getProfileLabel()}</p>
+          </div>
+
+          {/* Demo Profile Switcher */}
+          <div className="w-full">
+            <label className="text-sm font-medium text-muted-foreground mb-2 block">
+              Demo as:
+            </label>
+            <Select value={currentProfile} onValueChange={handleProfileChange}>
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="Select a profile" />
+              </SelectTrigger>
+              <SelectContent>
+                {DEMO_PROFILES.map((profile) => (
+                  <SelectItem key={profile.value} value={profile.value}>
+                    {profile.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Emergency Trigger Cards */}
+          <div className="w-full space-y-3 mt-4">
+            <p className="text-sm font-medium text-muted-foreground">Simulate Emergency:</p>
             
-            <Button 
-              variant="destructive"
-              className="gap-2"
-              onClick={() => {
-                unlockAudioForEmergency();
-                setShowAudioAlert(true);
-              }}
-            >
-              <Volume2 className="w-4 h-4" />
-              Test Audio Alert (Blind)
-            </Button>
+            {EMERGENCY_CARDS.map((card) => (
+              <Card
+                key={card.type}
+                className={`cursor-pointer transition-all duration-200 bg-gradient-to-r ${card.gradient} ${card.hoverGradient} border-0 shadow-lg hover:shadow-xl hover:scale-[1.02] active:scale-[0.98]`}
+                onClick={() => handleEmergencyTrigger(card.type)}
+              >
+                <CardContent className="flex items-center gap-4 p-4">
+                  <div className="w-12 h-12 rounded-full bg-white/20 flex items-center justify-center">
+                    <card.icon className="w-6 h-6 text-white" />
+                  </div>
+                  <div className="flex-1 text-left">
+                    <h3 className="font-bold text-white text-lg">{card.title}</h3>
+                    <p className="text-white/70 text-sm">Tap to simulate</p>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
           </div>
         </div>
       </div>
