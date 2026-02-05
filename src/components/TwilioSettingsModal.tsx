@@ -29,6 +29,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import { clearDetectionLog } from "@/utils/detectionLog";
 
 interface TwilioSettingsModalProps {
   open: boolean;
