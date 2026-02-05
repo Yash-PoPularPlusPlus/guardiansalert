@@ -116,8 +116,21 @@ export const useFireAlarmDetection = ({
 
     // Cooldown period after triggering (30 seconds)
     if (cooldownRef.current > now) {
+      const remaining = Math.ceil((cooldownRef.current - now) / 1000);
+      setState(prev => ({
+        ...prev,
+        detectionStatus: "cooldown",
+        cooldownRemaining: remaining,
+      }));
       animationFrameRef.current = requestAnimationFrame(analyzeAudio);
       return;
+    } else if (state.detectionStatus === "cooldown") {
+      // Cooldown just ended, reset to idle
+      setState(prev => ({
+        ...prev,
+        detectionStatus: "idle",
+        cooldownRemaining: 0,
+      }));
     }
 
     const result = isFireAlarmFrequency(frequencyData, SAMPLE_RATE);
