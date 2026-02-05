@@ -1,6 +1,6 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 
-export type DetectionStatus = "idle" | "detecting" | "confirmed";
+export type DetectionStatus = "idle" | "detecting" | "confirmed" | "cooldown";
 
 export interface FireAlarmDetectionState {
   isListening: boolean;
@@ -8,6 +8,7 @@ export interface FireAlarmDetectionState {
   permissionDenied: boolean;
   detectionStatus: DetectionStatus;
   detectionProgress: number; // 0-100 percent towards confirmation
+  cooldownRemaining: number; // seconds remaining in cooldown
 }
 
 interface UseFireAlarmDetectionOptions {
@@ -24,6 +25,7 @@ const DETECTION_DURATION_MS = 2000; // Must persist for 2 seconds
 const BEEP_INTERVAL_MS = 250; // Expected beep interval ~0.25-0.3s
 const FFT_SIZE = 2048;
 const SAMPLE_RATE = 44100; // Standard sample rate
+const COOLDOWN_DURATION_MS = 30000; // 30 second cooldown
 
 export const useFireAlarmDetection = ({
   onFireAlarmDetected,
@@ -36,6 +38,7 @@ export const useFireAlarmDetection = ({
     permissionDenied: false,
     detectionStatus: "idle",
     detectionProgress: 0,
+    cooldownRemaining: 0,
   });
 
   const audioContextRef = useRef<AudioContext | null>(null);
@@ -49,6 +52,7 @@ export const useFireAlarmDetection = ({
   const hasTriggeredRef = useRef<boolean>(false);
   const cooldownRef = useRef<number>(0);
   const wasDetectingRef = useRef<boolean>(false);
+  const cooldownIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   // Calculate frequency bin index for a given frequency
   const getFrequencyBinIndex = useCallback((frequency: number, sampleRate: number, fftSize: number) => {
