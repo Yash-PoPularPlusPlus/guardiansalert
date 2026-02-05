@@ -55,6 +55,16 @@ export const useFireAlarmDetection = ({
   const cooldownRef = useRef<number>(0);
   const wasDetectingRef = useRef<boolean>(false);
   const cooldownIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  
+  // Store callbacks in refs to avoid stale closures in requestAnimationFrame loop
+  const onFireAlarmDetectedRef = useRef(onFireAlarmDetected);
+  const onDetectionStartRef = useRef(onDetectionStart);
+  
+  // Keep refs updated
+  useEffect(() => {
+    onFireAlarmDetectedRef.current = onFireAlarmDetected;
+    onDetectionStartRef.current = onDetectionStart;
+  }, [onFireAlarmDetected, onDetectionStart]);
 
   // Calculate frequency bin index for a given frequency
   const getFrequencyBinIndex = useCallback((frequency: number, sampleRate: number, fftSize: number) => {
