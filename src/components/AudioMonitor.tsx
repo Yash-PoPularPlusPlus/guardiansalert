@@ -13,6 +13,8 @@ const AudioMonitor = ({ enabled, onAlertTriggered }: AudioMonitorProps) => {
   const [showDetectionAlert, setShowDetectionAlert] = useState(false);
 
   const handleFireAlarmDetected = useCallback(() => {
+    console.log("[AudioMonitor] Fire alarm detected! Triggering alert...");
+    
     // Show confirmed state briefly
     setShowDetectionAlert(true);
     
@@ -25,8 +27,11 @@ const AudioMonitor = ({ enabled, onAlertTriggered }: AudioMonitorProps) => {
     // Unlock audio for browsers
     unlockAudioForEmergency();
 
-    // Trigger the personalized alert through parent IMMEDIATELY
+    // CRITICAL: Call the parent callback synchronously
+    // This triggers the full-screen alert and SMS notifications
+    console.log("[AudioMonitor] Calling onAlertTriggered...");
     onAlertTriggered("fire");
+    console.log("[AudioMonitor] onAlertTriggered called");
     
     // Reset detection alert state after a short delay
     setTimeout(() => {
