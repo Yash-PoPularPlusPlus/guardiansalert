@@ -216,7 +216,7 @@ export const useFireAlarmDetection = ({
     }
 
     animationFrameRef.current = requestAnimationFrame(analyzeAudio);
-  }, [enabled, isFireAlarmFrequency, onFireAlarmDetected]);
+  }, [enabled, isFireAlarmFrequency]);
 
   // Start listening
   const startListening = useCallback(async () => {
