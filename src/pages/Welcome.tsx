@@ -25,7 +25,7 @@ const Welcome = () => {
           variant="guardian" 
           size="xl" 
           className="w-full mt-8"
-          onClick={() => navigate("/onboarding/disability")}
+          onClick={() => navigate("/onboarding/how-it-works")}
         >
           Get Started
         </Button>
