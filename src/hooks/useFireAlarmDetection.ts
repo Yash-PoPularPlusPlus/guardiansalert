@@ -1,13 +1,18 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 
+export type DetectionStatus = "idle" | "detecting" | "confirmed";
+
 export interface FireAlarmDetectionState {
   isListening: boolean;
   error: string | null;
   permissionDenied: boolean;
+  detectionStatus: DetectionStatus;
+  detectionProgress: number; // 0-100 percent towards confirmation
 }
 
 interface UseFireAlarmDetectionOptions {
   onFireAlarmDetected: () => void;
+  onDetectionStart?: () => void;
   enabled?: boolean;
 }
 
@@ -22,12 +27,15 @@ const SAMPLE_RATE = 44100; // Standard sample rate
 
 export const useFireAlarmDetection = ({
   onFireAlarmDetected,
+  onDetectionStart,
   enabled = true,
 }: UseFireAlarmDetectionOptions) => {
   const [state, setState] = useState<FireAlarmDetectionState>({
     isListening: false,
     error: null,
     permissionDenied: false,
+    detectionStatus: "idle",
+    detectionProgress: 0,
   });
 
   const audioContextRef = useRef<AudioContext | null>(null);
@@ -40,6 +48,7 @@ export const useFireAlarmDetection = ({
   const peakCountRef = useRef<number>(0);
   const hasTriggeredRef = useRef<boolean>(false);
   const cooldownRef = useRef<number>(0);
+  const wasDetectingRef = useRef<boolean>(false);
 
   // Calculate frequency bin index for a given frequency
   const getFrequencyBinIndex = useCallback((frequency: number, sampleRate: number, fftSize: number) => {
@@ -124,12 +133,26 @@ export const useFireAlarmDetection = ({
       } else {
         detectionStartRef.current = now;
         peakCountRef.current = 1;
+        // Notify when detection starts
+        if (!wasDetectingRef.current) {
+          wasDetectingRef.current = true;
+          onDetectionStart?.();
+        }
       }
       lastPeakTimeRef.current = now;
 
       // Check if detection criteria met
       if (detectionStartRef.current) {
         const detectionDuration = now - detectionStartRef.current;
+        const progress = Math.min(100, (detectionDuration / DETECTION_DURATION_MS) * 100);
+        
+        // Update detection status
+        setState(prev => ({
+          ...prev,
+          detectionStatus: progress >= 100 ? "confirmed" : "detecting",
+          detectionProgress: progress,
+        }));
+
         // Need at least 2 seconds of detection with multiple beeps
         if (detectionDuration >= DETECTION_DURATION_MS && peakCountRef.current >= 4) {
           if (!hasTriggeredRef.current) {
@@ -143,6 +166,12 @@ export const useFireAlarmDetection = ({
               peakCountRef.current = 0;
               detectionStartRef.current = null;
               lastPeakTimeRef.current = null;
+              wasDetectingRef.current = false;
+              setState(prev => ({
+                ...prev,
+                detectionStatus: "idle",
+                detectionProgress: 0,
+              }));
             }, 5000);
           }
         }
@@ -153,6 +182,12 @@ export const useFireAlarmDetection = ({
         peakCountRef.current = 0;
         detectionStartRef.current = null;
         lastPeakTimeRef.current = null;
+        wasDetectingRef.current = false;
+        setState(prev => ({
+          ...prev,
+          detectionStatus: "idle",
+          detectionProgress: 0,
+        }));
       }
     }
 
@@ -193,6 +228,8 @@ export const useFireAlarmDetection = ({
         isListening: true,
         error: null,
         permissionDenied: false,
+        detectionStatus: "idle",
+        detectionProgress: 0,
       });
 
       // Start analysis loop
@@ -205,18 +242,24 @@ export const useFireAlarmDetection = ({
           isListening: false,
           error: "Guardian Alert needs microphone access to detect fire alarms. Please enable in browser settings.",
           permissionDenied: true,
+          detectionStatus: "idle",
+          detectionProgress: 0,
         });
       } else if (error.name === "NotFoundError") {
         setState({
           isListening: false,
           error: "No microphone detected",
           permissionDenied: false,
+          detectionStatus: "idle",
+          detectionProgress: 0,
         });
       } else {
         setState({
           isListening: false,
           error: "Could not access microphone",
           permissionDenied: false,
+          detectionStatus: "idle",
+          detectionProgress: 0,
         });
       }
     }
