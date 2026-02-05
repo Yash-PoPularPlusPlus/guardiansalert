@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Shield, Flame, Globe, Waves } from "lucide-react";
+import { Shield, Flame, Globe, Waves, Settings, MessageSquare, AlertTriangle, CheckCircle } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import {
   Select,
@@ -13,6 +13,7 @@ import VisualAlert from "@/components/VisualAlert";
 import AudioAlert, { unlockAudioForEmergency } from "@/components/AudioAlert";
 import CognitiveAlert from "@/components/CognitiveAlert";
 import DeafBlindAlert from "@/components/DeafBlindAlert";
+import TwilioSettingsModal from "@/components/TwilioSettingsModal";
 import {
   usePersonalizedAlert,
   getDisabilities,
@@ -20,6 +21,7 @@ import {
   type EmergencyType,
   type DisabilityType,
 } from "@/hooks/usePersonalizedAlert";
+import { useSmsNotification, getTwilioSettings, getEmergencyContacts } from "@/hooks/useSmsNotification";
 
 const DEMO_PROFILES: { value: string; label: string; disabilities: DisabilityType[] }[] = [
   { value: "deaf", label: "Deaf", disabilities: ["deaf"] },
@@ -58,7 +60,10 @@ const Home = () => {
   const navigate = useNavigate();
   const [isComplete, setIsComplete] = useState(false);
   const [currentProfile, setCurrentProfile] = useState<string>("");
+  const [showSettings, setShowSettings] = useState(false);
+  const [smsStatus, setSmsStatus] = useState({ configured: false, contactCount: 0 });
   const { alertState, triggerPersonalizedAlert, dismissAlert } = usePersonalizedAlert();
+  const { notifyEmergencyContacts, isSending } = useSmsNotification();
 
   useEffect(() => {
     const data = localStorage.getItem("guardian_data");
@@ -82,7 +87,15 @@ const Home = () => {
     } else if (disabilities.length > 0) {
       setCurrentProfile("custom");
     }
-  }, [navigate]);
+
+    // Check SMS status
+    const twilioSettings = getTwilioSettings();
+    const contacts = getEmergencyContacts();
+    setSmsStatus({
+      configured: !!twilioSettings,
+      contactCount: contacts.length,
+    });
+  }, [navigate, showSettings]);
 
   const handleProfileChange = (value: string) => {
     const profile = DEMO_PROFILES.find(p => p.value === value);
@@ -92,10 +105,13 @@ const Home = () => {
     }
   };
 
-  const handleEmergencyTrigger = (type: EmergencyType) => {
+  const handleEmergencyTrigger = async (type: EmergencyType) => {
     // Unlock audio for browsers that require user interaction
     unlockAudioForEmergency();
     triggerPersonalizedAlert(type);
+    
+    // Send SMS to emergency contacts
+    await notifyEmergencyContacts(type);
   };
 
   const getProfileLabel = () => {
@@ -142,13 +158,41 @@ const Home = () => {
   return (
     <>
       {renderAlert()}
+      <TwilioSettingsModal open={showSettings} onOpenChange={setShowSettings} />
       
       <div className="guardian-container items-center text-center">
         <div className="flex flex-col items-center gap-6 w-full max-w-sm">
-          {/* Status Badge */}
-          <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-primary/10">
-            <Shield className="w-5 h-5 text-primary" />
-            <span className="text-sm font-medium text-primary">Guardian Alert Active</span>
+          {/* Header with Settings */}
+          <div className="w-full flex items-center justify-between">
+            <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-primary/10">
+              <Shield className="w-5 h-5 text-primary" />
+              <span className="text-sm font-medium text-primary">Guardian Alert Active</span>
+            </div>
+            <button
+              onClick={() => setShowSettings(true)}
+              className="p-2 rounded-full hover:bg-muted transition-colors"
+              aria-label="Settings"
+            >
+              <Settings className="w-5 h-5 text-muted-foreground" />
+            </button>
+          </div>
+
+          {/* SMS Status */}
+          <div className="w-full flex items-center gap-3 p-3 rounded-lg bg-muted/30 border border-border">
+            <MessageSquare className="w-5 h-5 text-muted-foreground" />
+            <div className="flex-1 text-left">
+              {smsStatus.configured ? (
+                <div className="flex items-center gap-2">
+                  <CheckCircle className="w-4 h-4 text-green-600" />
+                  <span className="text-sm">SMS: Enabled ({smsStatus.contactCount} contacts)</span>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2">
+                  <AlertTriangle className="w-4 h-4 text-amber-500" />
+                  <span className="text-sm text-muted-foreground">SMS: Not configured</span>
+                </div>
+              )}
+            </div>
           </div>
 
           {/* Current Profile Display */}
