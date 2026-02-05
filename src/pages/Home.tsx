@@ -63,7 +63,7 @@ const Home = () => {
   const [showSettings, setShowSettings] = useState(false);
   const [smsStatus, setSmsStatus] = useState({ configured: false, contactCount: 0 });
   const { alertState, triggerPersonalizedAlert, dismissAlert } = usePersonalizedAlert();
-  const { notifyEmergencyContacts, isSending } = useSmsNotification();
+  const { notifyEmergencyContacts, isSending, resetSmsFlag } = useSmsNotification();
 
   useEffect(() => {
     const data = localStorage.getItem("guardian_data");
@@ -122,6 +122,11 @@ const Home = () => {
 
   if (!isComplete) return null;
 
+  const handleDismissAlert = () => {
+    dismissAlert();
+    resetSmsFlag();
+  };
+
   // Render the appropriate alert based on config
   const renderAlert = () => {
     if (!alertState.isActive || !alertState.config || !alertState.emergencyType) return null;
@@ -129,11 +134,11 @@ const Home = () => {
     const { config, emergencyType } = alertState;
 
     if (config.showDeafBlind) {
-      return <DeafBlindAlert emergencyType={emergencyType} onDismiss={dismissAlert} />;
+      return <DeafBlindAlert emergencyType={emergencyType} onDismiss={handleDismissAlert} />;
     }
 
     if (config.showCognitive) {
-      return <CognitiveAlert emergencyType={emergencyType} onDismiss={dismissAlert} />;
+      return <CognitiveAlert emergencyType={emergencyType} onDismiss={handleDismissAlert} />;
     }
 
     return (
@@ -141,14 +146,14 @@ const Home = () => {
         {config.showVisual && (
           <VisualAlert 
             emergencyType={emergencyType} 
-            onDismiss={dismissAlert}
+            onDismiss={handleDismissAlert}
             extraMessage={config.extraMessage}
           />
         )}
         {config.showAudio && (
           <AudioAlert 
             emergencyType={emergencyType} 
-            onDismiss={dismissAlert} 
+            onDismiss={handleDismissAlert} 
           />
         )}
       </>

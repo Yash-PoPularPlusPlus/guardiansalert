@@ -81,10 +81,48 @@ const getCurrentLocation = (): Promise<string> => {
   });
 };
 
+const SMS_COOLDOWN_MS = 60000; // 60 seconds
+
+const getLastSmsSentTime = (): number => {
+  try {
+    const saved = localStorage.getItem("guardian_last_sms");
+    return saved ? parseInt(saved, 10) : 0;
+  } catch {
+    return 0;
+  }
+};
+
+const setLastSmsSentTime = () => {
+  localStorage.setItem("guardian_last_sms", Date.now().toString());
+};
+
 export const useSmsNotification = () => {
   const [isSending, setIsSending] = useState(false);
+  const [smsSentForCurrentAlert, setSmsSentForCurrentAlert] = useState(false);
+
+  const resetSmsFlag = useCallback(() => {
+    setSmsSentForCurrentAlert(false);
+  }, []);
 
   const notifyEmergencyContacts = useCallback(async (emergencyType: EmergencyType) => {
+    // Check if already sent for this alert
+    if (smsSentForCurrentAlert) {
+      console.log("SMS already sent for this alert, skipping");
+      return { success: false, reason: "already_sent" };
+    }
+
+    // Check cooldown
+    const lastSent = getLastSmsSentTime();
+    const timeSinceLast = Date.now() - lastSent;
+    if (timeSinceLast < SMS_COOLDOWN_MS) {
+      const remainingSeconds = Math.ceil((SMS_COOLDOWN_MS - timeSinceLast) / 1000);
+      toast({
+        title: "SMS already sent",
+        description: `Wait ${remainingSeconds}s before sending again`,
+      });
+      return { success: false, reason: "cooldown" };
+    }
+
     const settings = getTwilioSettings();
     const contacts = getEmergencyContacts();
 
@@ -99,6 +137,7 @@ export const useSmsNotification = () => {
     }
 
     setIsSending(true);
+    setSmsSentForCurrentAlert(true);
 
     try {
       const locationUrl = await getCurrentLocation();
@@ -127,12 +166,14 @@ export const useSmsNotification = () => {
       }
 
       if (data?.success) {
+        setLastSmsSentTime();
         toast({
           title: "Emergency contacts notified ✓",
           description: `SMS sent to ${contacts.length} contact(s)`,
         });
         return { success: true };
       } else if (data?.partial) {
+        setLastSmsSentTime();
         toast({
           title: "Some SMS sent",
           description: "Not all contacts were notified",
@@ -158,7 +199,7 @@ export const useSmsNotification = () => {
     } finally {
       setIsSending(false);
     }
-  }, []);
+  }, [smsSentForCurrentAlert]);
 
   const sendTestSms = useCallback(async () => {
     const settings = getTwilioSettings();
@@ -237,5 +278,6 @@ export const useSmsNotification = () => {
     isSending,
     notifyEmergencyContacts,
     sendTestSms,
+    resetSmsFlag,
   };
 };
