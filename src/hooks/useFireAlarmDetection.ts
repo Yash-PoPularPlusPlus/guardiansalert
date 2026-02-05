@@ -1,13 +1,18 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 
+export type DetectionStatus = "idle" | "detecting" | "confirmed";
+
 export interface FireAlarmDetectionState {
   isListening: boolean;
   error: string | null;
   permissionDenied: boolean;
+  detectionStatus: DetectionStatus;
+  detectionProgress: number; // 0-100 percent towards confirmation
 }
 
 interface UseFireAlarmDetectionOptions {
   onFireAlarmDetected: () => void;
+  onDetectionStart?: () => void;
   enabled?: boolean;
 }
 
@@ -22,12 +27,15 @@ const SAMPLE_RATE = 44100; // Standard sample rate
 
 export const useFireAlarmDetection = ({
   onFireAlarmDetected,
+  onDetectionStart,
   enabled = true,
 }: UseFireAlarmDetectionOptions) => {
   const [state, setState] = useState<FireAlarmDetectionState>({
     isListening: false,
     error: null,
     permissionDenied: false,
+    detectionStatus: "idle",
+    detectionProgress: 0,
   });
 
   const audioContextRef = useRef<AudioContext | null>(null);
@@ -40,6 +48,7 @@ export const useFireAlarmDetection = ({
   const peakCountRef = useRef<number>(0);
   const hasTriggeredRef = useRef<boolean>(false);
   const cooldownRef = useRef<number>(0);
+  const wasDetectingRef = useRef<boolean>(false);
 
   // Calculate frequency bin index for a given frequency
   const getFrequencyBinIndex = useCallback((frequency: number, sampleRate: number, fftSize: number) => {
