@@ -139,7 +139,6 @@ const Home = () => {
   // This is called from AudioMonitor when fire alarm is detected
   const handleAutoDetectedAlert = useCallback((type: EmergencyType) => {
     console.log("[Guardian] Auto-detected alert triggered:", type);
-    console.log("[Guardian] Current triggerAlertRef:", triggerAlertRef.current);
     console.log("[Guardian] Current alertState:", alertState);
     
     // Unlock audio for browsers that require user interaction
