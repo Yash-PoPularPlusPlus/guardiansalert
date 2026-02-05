@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Shield, CheckCircle } from "lucide-react";
+import { Shield, CheckCircle, RotateCcw } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 const Home = () => {
   const navigate = useNavigate();
@@ -18,6 +19,13 @@ const Home = () => {
       setIsComplete(true);
     }
   }, [navigate]);
+
+  const handleStartOver = () => {
+    localStorage.removeItem("guardian_data");
+    localStorage.removeItem("guardian_disabilities");
+    localStorage.removeItem("guardian_contacts");
+    navigate("/");
+  };
 
   if (!isComplete) return null;
 
@@ -41,6 +49,16 @@ const Home = () => {
           <Shield className="w-5 h-5 text-primary" />
           <span className="text-sm font-medium text-primary">Guardian Alert Active</span>
         </div>
+
+        <Button 
+          variant="ghost" 
+          size="sm" 
+          className="mt-8 text-muted-foreground"
+          onClick={handleStartOver}
+        >
+          <RotateCcw className="w-4 h-4 mr-2" />
+          Start Over
+        </Button>
       </div>
     </div>
   );
