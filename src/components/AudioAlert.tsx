@@ -23,6 +23,7 @@ const AudioAlert = ({ emergencyType, onDismiss }: AudioAlertProps) => {
   const cycleTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const isActiveRef = useRef(true);
   const [isPlaying, setIsPlaying] = useState(true);
+  const [currentPhase, setCurrentPhase] = useState<"siren" | "voice" | "pause">("siren");
 
   const startSiren = () => {
     try {
@@ -76,10 +77,12 @@ const AudioAlert = ({ emergencyType, onDismiss }: AudioAlertProps) => {
   const speakAnnouncement = (): Promise<void> => {
     return new Promise((resolve) => {
       if (!("speechSynthesis" in window) || !isActiveRef.current) {
+        console.log("Speech synthesis not available");
         resolve();
         return;
       }
 
+      // Cancel any ongoing speech
       window.speechSynthesis.cancel();
 
       const message = `Emergency. ${emergencyLabels[emergencyType]} detected. Evacuate immediately.`;
@@ -89,10 +92,32 @@ const AudioAlert = ({ emergencyType, onDismiss }: AudioAlertProps) => {
       utterance.pitch = 1.0;
       utterance.lang = "en-US";
 
-      utterance.onend = () => resolve();
-      utterance.onerror = () => resolve();
+      // Try to get a voice
+      const voices = window.speechSynthesis.getVoices();
+      const englishVoice = voices.find(v => v.lang.startsWith("en"));
+      if (englishVoice) {
+        utterance.voice = englishVoice;
+      }
 
-      window.speechSynthesis.speak(utterance);
+      utterance.onend = () => {
+        console.log("Speech ended");
+        resolve();
+      };
+      
+      utterance.onerror = (event) => {
+        console.error("Speech error:", event);
+        resolve();
+      };
+
+      // Small delay to ensure speech synthesis is ready
+      setTimeout(() => {
+        if (isActiveRef.current) {
+          console.log("Speaking:", message);
+          window.speechSynthesis.speak(utterance);
+        } else {
+          resolve();
+        }
+      }, 100);
     });
   };
 
@@ -100,6 +125,7 @@ const AudioAlert = ({ emergencyType, onDismiss }: AudioAlertProps) => {
     if (!isActiveRef.current) return;
 
     // Step 1: Play siren for 3 seconds
+    setCurrentPhase("siren");
     startSiren();
     
     await new Promise<void>((resolve) => {
@@ -114,11 +140,13 @@ const AudioAlert = ({ emergencyType, onDismiss }: AudioAlertProps) => {
     if (!isActiveRef.current) return;
 
     // Step 3: Play voice announcement
+    setCurrentPhase("voice");
     await speakAnnouncement();
 
     if (!isActiveRef.current) return;
 
     // Step 4: Pause for 1 second
+    setCurrentPhase("pause");
     await new Promise<void>((resolve) => {
       cycleTimeoutRef.current = setTimeout(resolve, 1000);
     });
@@ -156,6 +184,16 @@ const AudioAlert = ({ emergencyType, onDismiss }: AudioAlertProps) => {
 
   useEffect(() => {
     isActiveRef.current = true;
+    
+    // Pre-load voices (some browsers need this)
+    if ("speechSynthesis" in window) {
+      window.speechSynthesis.getVoices();
+      // Some browsers load voices asynchronously
+      window.speechSynthesis.onvoiceschanged = () => {
+        window.speechSynthesis.getVoices();
+      };
+    }
+    
     runCycle();
 
     return () => {
@@ -169,7 +207,7 @@ const AudioAlert = ({ emergencyType, onDismiss }: AudioAlertProps) => {
         <Volume2 className="w-6 h-6 animate-bounce" />
         <div className="flex flex-col">
           <span className="font-semibold text-sm">
-            {isPlaying ? "Audio Alert Playing..." : "Audio Stopped"}
+            {isPlaying ? `Audio Alert: ${currentPhase === "siren" ? "Siren" : currentPhase === "voice" ? "Speaking" : "Pause"}` : "Audio Stopped"}
           </span>
           <span className="text-xs opacity-80">
             {emergencyLabels[emergencyType]} Emergency
