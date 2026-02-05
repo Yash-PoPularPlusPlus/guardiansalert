@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import { Shield, Flame, Globe, Waves, Settings, MessageSquare, AlertTriangle, CheckCircle, Users } from "lucide-react";
+import { Shield, Flame, Globe, Waves, Settings, MessageSquare, AlertTriangle, CheckCircle, Users, Clock, Hand } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import {
   Select,
@@ -24,6 +24,13 @@ import {
   type DisabilityType,
 } from "@/hooks/usePersonalizedAlert";
 import { useSmsNotification, getTwilioSettings, getEmergencyContacts } from "@/hooks/useSmsNotification";
+import { 
+  getDetectionLog, 
+  addDetectionEntry, 
+  formatDetectionTime, 
+  formatDetectionLabel,
+  type DetectionLogEntry 
+} from "@/utils/detectionLog";
 
 const DEMO_PROFILES: { value: string; label: string; disabilities: DisabilityType[] }[] = [
   { value: "deaf", label: "Deaf", disabilities: ["deaf"] },
