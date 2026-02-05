@@ -1,5 +1,5 @@
 import { useEffect, useCallback, useState } from "react";
-import { Mic, MicOff, AlertCircle, Flame, Shield } from "lucide-react";
+import { Mic, MicOff, AlertCircle, Flame, Shield, Clock, RotateCcw } from "lucide-react";
 import { useFireAlarmDetection } from "@/hooks/useFireAlarmDetection";
 import { unlockAudioForEmergency } from "@/components/AudioAlert";
 import { toast } from "@/hooks/use-toast";
@@ -26,7 +26,6 @@ const AudioMonitor = ({ enabled, onAlertTriggered }: AudioMonitorProps) => {
     unlockAudioForEmergency();
 
     // Trigger the personalized alert through parent IMMEDIATELY
-    // Parent handles SMS, logging, and all alert UI
     onAlertTriggered("fire");
     
     // Reset detection alert state after a short delay
@@ -35,7 +34,15 @@ const AudioMonitor = ({ enabled, onAlertTriggered }: AudioMonitorProps) => {
     }, 2000);
   }, [onAlertTriggered]);
 
-  const { isListening, error, permissionDenied, detectionStatus, detectionProgress } = useFireAlarmDetection({
+  const { 
+    isListening, 
+    error, 
+    permissionDenied, 
+    detectionStatus, 
+    detectionProgress,
+    cooldownRemaining,
+    resetCooldown
+  } = useFireAlarmDetection({
     onFireAlarmDetected: handleFireAlarmDetected,
     enabled,
   });
@@ -60,6 +67,16 @@ const AudioMonitor = ({ enabled, onAlertTriggered }: AudioMonitorProps) => {
   // Determine display state
   const isDetecting = detectionStatus === "detecting" || showDetectionAlert;
   const isConfirmed = detectionStatus === "confirmed" || showDetectionAlert;
+  const isCooldown = detectionStatus === "cooldown";
+
+  const handleResetClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    resetCooldown();
+    toast({
+      title: "Monitoring resumed",
+      description: "Fire alarm detection is now active again.",
+    });
+  };
 
   return (
     <div className="fixed top-4 right-4 z-40">
@@ -71,9 +88,11 @@ const AudioMonitor = ({ enabled, onAlertTriggered }: AudioMonitorProps) => {
             ? "bg-red-600/90 text-white" 
             : isDetecting
               ? "bg-amber-500/90 text-white"
-              : error 
-                ? "bg-destructive/80 text-destructive-foreground"
-                : "bg-black/70 text-white"
+              : isCooldown
+                ? "bg-blue-600/90 text-white"
+                : error 
+                  ? "bg-destructive/80 text-destructive-foreground"
+                  : "bg-black/70 text-white"
           }
         `}
       >
@@ -88,6 +107,11 @@ const AudioMonitor = ({ enabled, onAlertTriggered }: AudioMonitorProps) => {
             <>
               <Flame className="w-5 h-5 animate-pulse" />
               <span className="font-medium">Analyzing sound...</span>
+            </>
+          ) : isCooldown ? (
+            <>
+              <Clock className="w-5 h-5" />
+              <span className="font-medium">Cooldown: {cooldownRemaining}s</span>
             </>
           ) : isListening ? (
             <>
@@ -111,10 +135,24 @@ const AudioMonitor = ({ enabled, onAlertTriggered }: AudioMonitorProps) => {
         </div>
 
         {/* Secondary info row */}
-        {isListening && !isDetecting && !isConfirmed && (
+        {isListening && !isDetecting && !isConfirmed && !isCooldown && (
           <div className="flex items-center gap-1.5 text-white/70">
             <Shield className="w-3 h-3" />
             <span>Monitoring for fire alarms</span>
+          </div>
+        )}
+
+        {/* Cooldown info with reset button */}
+        {isCooldown && (
+          <div className="flex items-center justify-between gap-2 mt-1">
+            <span className="text-white/70 text-[10px]">Alert triggered recently</span>
+            <button
+              onClick={handleResetClick}
+              className="flex items-center gap-1 px-2 py-1 bg-white/20 hover:bg-white/30 rounded-md transition-colors text-[10px] font-medium"
+            >
+              <RotateCcw className="w-3 h-3" />
+              Resume
+            </button>
           </div>
         )}
 
@@ -129,7 +167,7 @@ const AudioMonitor = ({ enabled, onAlertTriggered }: AudioMonitorProps) => {
         )}
 
         {/* Active status */}
-        {isListening && !error && !isDetecting && (
+        {isListening && !error && !isDetecting && !isCooldown && (
           <div className="flex items-center gap-1.5 text-white/50 text-[10px]">
             <span className="w-1.5 h-1.5 bg-green-400 rounded-full" />
             <span>Active now</span>
