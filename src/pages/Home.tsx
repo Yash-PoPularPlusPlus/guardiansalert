@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { Shield, Flame, Globe, Waves, Settings, MessageSquare, AlertTriangle, CheckCircle, Users } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
@@ -15,6 +15,7 @@ import AudioAlert, { unlockAudioForEmergency } from "@/components/AudioAlert";
 import CognitiveAlert from "@/components/CognitiveAlert";
 import DeafBlindAlert from "@/components/DeafBlindAlert";
 import TwilioSettingsModal from "@/components/TwilioSettingsModal";
+import AudioMonitor from "@/components/AudioMonitor";
 import {
   usePersonalizedAlert,
   getDisabilities,
@@ -118,6 +119,11 @@ const Home = () => {
     await notifyEmergencyContacts(type);
   };
 
+  // Callback for AudioMonitor when fire alarm is detected
+  const handleAudioDetectedAlert = useCallback((type: EmergencyType) => {
+    triggerPersonalizedAlert(type);
+  }, [triggerPersonalizedAlert]);
+
   const getProfileLabel = () => {
     if (currentProfile === "custom") return "Custom";
     const profile = DEMO_PROFILES.find(p => p.value === currentProfile);
@@ -168,6 +174,10 @@ const Home = () => {
     <>
       {renderAlert()}
       <TwilioSettingsModal open={showSettings} onOpenChange={setShowSettings} />
+      <AudioMonitor 
+        enabled={isComplete && !alertState.isActive} 
+        onAlertTriggered={handleAudioDetectedAlert}
+      />
       
       <div className="min-h-screen bg-background flex flex-col">
         {/* Header */}
