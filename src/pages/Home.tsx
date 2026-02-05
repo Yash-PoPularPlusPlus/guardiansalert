@@ -78,15 +78,6 @@ const Home = () => {
   const { alertState, triggerPersonalizedAlert, dismissAlert } = usePersonalizedAlert();
   const { notifyEmergencyContacts, isSending, resetSmsFlag } = useSmsNotification();
 
-  // Store latest triggerPersonalizedAlert in ref to avoid stale closures
-  const triggerAlertRef = useRef(triggerPersonalizedAlert);
-  const notifyContactsRef = useRef(notifyEmergencyContacts);
-  
-  useEffect(() => {
-    triggerAlertRef.current = triggerPersonalizedAlert;
-    notifyContactsRef.current = notifyEmergencyContacts;
-  }, [triggerPersonalizedAlert, notifyEmergencyContacts]);
-
   useEffect(() => {
     const data = localStorage.getItem("guardian_data");
     if (!data) {
