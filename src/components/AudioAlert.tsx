@@ -130,35 +130,32 @@ const AudioAlert = ({ emergencyType, onDismiss }: AudioAlertProps) => {
   };
 
   const runCycle = async () => {
-    if (!isActiveRef.current) return;
+    while (isActiveRef.current) {
+      // Siren phase
+      setCurrentPhase("siren");
+      startSiren();
+      
+      await new Promise<void>((resolve) => {
+        cycleTimeoutRef.current = setTimeout(resolve, 3000);
+      });
 
-    // Siren phase
-    setCurrentPhase("siren");
-    startSiren();
-    
-    await new Promise<void>((resolve) => {
-      cycleTimeoutRef.current = setTimeout(resolve, 3000);
-    });
+      if (!isActiveRef.current) break;
+      stopSiren();
 
-    if (!isActiveRef.current) return;
-    stopSiren();
+      if (!isActiveRef.current) break;
 
-    if (!isActiveRef.current) return;
+      // Voice phase
+      setCurrentPhase("voice");
+      await speakAnnouncement();
 
-    // Voice phase
-    setCurrentPhase("voice");
-    await speakAnnouncement();
+      if (!isActiveRef.current) break;
 
-    if (!isActiveRef.current) return;
-
-    // Pause phase
-    setCurrentPhase("pause");
-    await new Promise<void>((resolve) => {
-      cycleTimeoutRef.current = setTimeout(resolve, 1000);
-    });
-
-    if (!isActiveRef.current) return;
-    runCycle();
+      // Pause phase (0.5 seconds)
+      setCurrentPhase("pause");
+      await new Promise<void>((resolve) => {
+        cycleTimeoutRef.current = setTimeout(resolve, 500);
+      });
+    }
   };
 
   const stopAllAudio = () => {
