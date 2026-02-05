@@ -315,6 +315,22 @@ export const useFireAlarmDetection = ({
     }));
   }, []);
 
+  // Reset cooldown to resume monitoring immediately
+  const resetCooldown = useCallback(() => {
+    cooldownRef.current = 0;
+    hasTriggeredRef.current = false;
+    peakCountRef.current = 0;
+    detectionStartRef.current = null;
+    lastPeakTimeRef.current = null;
+    wasDetectingRef.current = false;
+    setState(prev => ({
+      ...prev,
+      detectionStatus: "idle",
+      detectionProgress: 0,
+      cooldownRemaining: 0,
+    }));
+  }, []);
+
   // Auto-start when enabled changes
   useEffect(() => {
     if (enabled) {
@@ -332,5 +348,6 @@ export const useFireAlarmDetection = ({
     ...state,
     startListening,
     stopListening,
+    resetCooldown,
   };
 };
