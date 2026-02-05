@@ -29,6 +29,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import { clearDetectionLog } from "@/utils/detectionLog";
 
 interface TwilioSettingsModalProps {
   open: boolean;
@@ -76,6 +77,7 @@ const TwilioSettingsModal = ({ open, onOpenChange }: TwilioSettingsModalProps) =
     localStorage.removeItem("twilioAuthToken");
     localStorage.removeItem("twilioPhoneNumber");
     localStorage.removeItem("guardian_last_sms");
+    clearDetectionLog();
     
     // Close modal and navigate to welcome
     onOpenChange(false);
