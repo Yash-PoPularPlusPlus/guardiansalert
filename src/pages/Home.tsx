@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { Shield, CheckCircle, AlertTriangle, Volume2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import VisualAlert from "@/components/VisualAlert";
-import AudioAlert from "@/components/AudioAlert";
+import AudioAlert, { unlockAudioForEmergency } from "@/components/AudioAlert";
 
 const Home = () => {
   const navigate = useNavigate();
@@ -75,7 +75,10 @@ const Home = () => {
             <Button 
               variant="destructive"
               className="gap-2"
-              onClick={() => setShowAudioAlert(true)}
+              onClick={() => {
+                unlockAudioForEmergency();
+                setShowAudioAlert(true);
+              }}
             >
               <Volume2 className="w-4 h-4" />
               Test Audio Alert (Blind)
