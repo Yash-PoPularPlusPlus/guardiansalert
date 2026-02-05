@@ -119,6 +119,11 @@ const Home = () => {
     await notifyEmergencyContacts(type);
   };
 
+  // Callback for AudioMonitor when fire alarm is detected
+  const handleAudioDetectedAlert = useCallback((type: EmergencyType) => {
+    triggerPersonalizedAlert(type);
+  }, [triggerPersonalizedAlert]);
+
   const getProfileLabel = () => {
     if (currentProfile === "custom") return "Custom";
     const profile = DEMO_PROFILES.find(p => p.value === currentProfile);
