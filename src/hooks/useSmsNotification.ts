@@ -4,8 +4,8 @@ import { toast } from "@/hooks/use-toast";
 import type { EmergencyType } from "./usePersonalizedAlert";
 
 export interface TwilioSettings {
-  accountSid: string;
-  authToken: string;
+  twilioAccountSid: string;
+  twilioAuthToken: string;
   twilioPhoneNumber: string;
 }
 
@@ -19,7 +19,7 @@ export const getTwilioSettings = (): TwilioSettings | null => {
     const saved = localStorage.getItem("guardian_twilio");
     if (saved) {
       const parsed = JSON.parse(saved);
-      if (parsed.accountSid && parsed.authToken && parsed.twilioPhoneNumber) {
+      if (parsed.twilioAccountSid && parsed.twilioAuthToken && parsed.twilioPhoneNumber) {
         return parsed;
       }
     }
@@ -106,8 +106,8 @@ export const useSmsNotification = () => {
 
       const { data, error } = await supabase.functions.invoke("send-sms", {
         body: {
-          accountSid: settings.accountSid,
-          authToken: settings.authToken,
+          accountSid: settings.twilioAccountSid,
+          authToken: settings.twilioAuthToken,
           twilioPhoneNumber: settings.twilioPhoneNumber,
           contacts,
           userName,
@@ -187,8 +187,8 @@ export const useSmsNotification = () => {
     try {
       const { data, error } = await supabase.functions.invoke("send-sms", {
         body: {
-          accountSid: settings.accountSid,
-          authToken: settings.authToken,
+          accountSid: settings.twilioAccountSid,
+          authToken: settings.twilioAuthToken,
           twilioPhoneNumber: settings.twilioPhoneNumber,
           contacts,
           userName: getUserName(),

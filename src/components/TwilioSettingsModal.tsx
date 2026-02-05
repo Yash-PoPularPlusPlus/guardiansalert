@@ -24,8 +24,8 @@ interface TwilioSettingsModalProps {
 
 const TwilioSettingsModal = ({ open, onOpenChange }: TwilioSettingsModalProps) => {
   const [settings, setSettings] = useState<TwilioSettings>({
-    accountSid: "",
-    authToken: "",
+    twilioAccountSid: "",
+    twilioAuthToken: "",
     twilioPhoneNumber: "",
   });
   const [saved, setSaved] = useState(false);
@@ -53,7 +53,7 @@ const TwilioSettingsModal = ({ open, onOpenChange }: TwilioSettingsModalProps) =
     await sendTestSms();
   };
 
-  const isConfigured = settings.accountSid && settings.authToken && settings.twilioPhoneNumber;
+  const isConfigured = settings.twilioAccountSid && settings.twilioAuthToken && settings.twilioPhoneNumber;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -68,8 +68,8 @@ const TwilioSettingsModal = ({ open, onOpenChange }: TwilioSettingsModalProps) =
             <Input
               id="accountSid"
               placeholder="ACxxxxxxxxx..."
-              value={settings.accountSid}
-              onChange={(e) => setSettings({ ...settings, accountSid: e.target.value })}
+              value={settings.twilioAccountSid}
+              onChange={(e) => setSettings({ ...settings, twilioAccountSid: e.target.value })}
             />
           </div>
 
@@ -79,8 +79,8 @@ const TwilioSettingsModal = ({ open, onOpenChange }: TwilioSettingsModalProps) =
               id="authToken"
               type="password"
               placeholder="Your auth token"
-              value={settings.authToken}
-              onChange={(e) => setSettings({ ...settings, authToken: e.target.value })}
+              value={settings.twilioAuthToken}
+              onChange={(e) => setSettings({ ...settings, twilioAuthToken: e.target.value })}
             />
           </div>
 
