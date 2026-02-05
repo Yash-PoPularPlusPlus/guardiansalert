@@ -145,20 +145,26 @@ const Home = () => {
   };
 
   // Automatic detection callback (primary method)
-  // Using refs to avoid stale closure issues with async audio detection
+  // This is called from AudioMonitor when fire alarm is detected
   const handleAutoDetectedAlert = useCallback((type: EmergencyType) => {
     console.log("[Guardian] Auto-detected alert triggered:", type);
+    console.log("[Guardian] Current triggerAlertRef:", triggerAlertRef.current);
+    console.log("[Guardian] Current alertState:", alertState);
     
-    // Trigger alert immediately - this shows the personalized alert UI
-    triggerAlertRef.current(type);
+    // Unlock audio for browsers that require user interaction
+    unlockAudioForEmergency();
+    
+    // Trigger alert immediately using the CURRENT function (not ref)
+    // This ensures we don't have stale closure issues
+    triggerPersonalizedAlert(type);
     
     // Log the automatic detection
     const updated = addDetectionEntry(type, "automatic");
     setActivityLog(updated);
     
-    // Send SMS to emergency contacts (same as manual trigger)
-    notifyContactsRef.current(type);
-  }, []);
+    // Send SMS to emergency contacts
+    notifyEmergencyContacts(type);
+  }, [triggerPersonalizedAlert, notifyEmergencyContacts, alertState]);
 
   const getProfileLabel = () => {
     if (currentProfile === "custom") return "Custom";
