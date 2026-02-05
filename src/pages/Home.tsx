@@ -174,6 +174,10 @@ const Home = () => {
     <>
       {renderAlert()}
       <TwilioSettingsModal open={showSettings} onOpenChange={setShowSettings} />
+      <AudioMonitor 
+        enabled={isComplete && !alertState.isActive} 
+        onAlertTriggered={handleAudioDetectedAlert}
+      />
       
       <div className="min-h-screen bg-background flex flex-col">
         {/* Header */}
