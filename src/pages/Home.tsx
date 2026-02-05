@@ -197,7 +197,7 @@ const Home = () => {
       <TwilioSettingsModal open={showSettings} onOpenChange={setShowSettings} />
       <AudioMonitor 
         enabled={isComplete && !alertState.isActive} 
-        onAlertTriggered={handleAudioDetectedAlert}
+        onAlertTriggered={handleAutoDetectedAlert}
       />
       
       <div className="min-h-screen bg-background flex flex-col">
@@ -222,7 +222,7 @@ const Home = () => {
         </header>
 
         {/* Main Content */}
-        <main className="flex-1 px-5 py-6 space-y-6">
+        <main className="flex-1 px-5 py-6 space-y-6 overflow-y-auto">
           {/* Profile Section */}
           <div className="space-y-3">
             <div className="flex items-center justify-between">
@@ -252,27 +252,67 @@ const Home = () => {
             </div>
           </div>
 
-          {/* Emergency Cards */}
+          {/* Manual Alert Cards */}
           <div className="space-y-3">
-            <p className="text-sm font-medium text-muted-foreground">Simulate Emergency</p>
+            <div>
+              <div className="flex items-center gap-2 mb-1">
+                <Hand className="w-4 h-4 text-muted-foreground" />
+                <p className="text-sm font-medium text-muted-foreground">Manual Alert</p>
+              </div>
+              <p className="text-xs text-muted-foreground">Tap if you need to report an emergency manually</p>
+            </div>
             
             {EMERGENCY_CARDS.map((card) => (
               <Card
                 key={card.type}
                 className={`cursor-pointer transition-all duration-200 bg-gradient-to-r ${card.gradient} border-0 shadow-lg ${card.shadow} hover:shadow-xl active:scale-[0.98] rounded-xl overflow-hidden`}
-                onClick={() => handleEmergencyTrigger(card.type)}
+                onClick={() => handleManualTrigger(card.type)}
               >
-                <CardContent className="flex items-center gap-4 p-5">
-                  <div className="w-14 h-14 rounded-xl bg-white/20 flex items-center justify-center text-3xl">
+                <CardContent className="flex items-center gap-4 p-4">
+                  <div className="w-12 h-12 rounded-xl bg-white/20 flex items-center justify-center text-2xl">
                     {card.emoji}
                   </div>
                   <div className="flex-1">
-                    <h3 className="font-bold text-white text-lg">{card.title}</h3>
-                    <p className="text-white/70 text-sm">Tap to simulate</p>
+                    <h3 className="font-bold text-white text-base">{card.title}</h3>
+                    <p className="text-white/70 text-xs">Tap to trigger alert</p>
                   </div>
                 </CardContent>
               </Card>
             ))}
+          </div>
+
+          {/* Recent Activity */}
+          <div className="space-y-3">
+            <div className="flex items-center gap-2">
+              <Clock className="w-4 h-4 text-muted-foreground" />
+              <p className="text-sm font-medium text-muted-foreground">Recent Activity</p>
+            </div>
+            
+            <div className="bg-card rounded-xl border border-border overflow-hidden">
+              {activityLog.length === 0 ? (
+                <div className="p-4 text-center text-sm text-muted-foreground">
+                  No activity yet
+                </div>
+              ) : (
+                <div className="divide-y divide-border">
+                  {activityLog.slice(0, 3).map((entry, index) => (
+                    <div key={index} className="flex items-center justify-between p-3">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm">{formatDetectionLabel(entry.type)}</span>
+                        {entry.source === "automatic" && (
+                          <Badge variant="outline" className="text-[10px] px-1.5 py-0">
+                            Auto
+                          </Badge>
+                        )}
+                      </div>
+                      <span className="text-xs text-muted-foreground">
+                        {formatDetectionTime(entry.timestamp)}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         </main>
 
