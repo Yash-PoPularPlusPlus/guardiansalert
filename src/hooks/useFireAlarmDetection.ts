@@ -165,7 +165,7 @@ export const useFireAlarmDetection = ({
         // Notify when detection starts
         if (!wasDetectingRef.current) {
           wasDetectingRef.current = true;
-          onDetectionStart?.();
+          onDetectionStartRef.current?.();
         }
       }
       lastPeakTimeRef.current = now;
