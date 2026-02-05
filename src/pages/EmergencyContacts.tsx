@@ -17,6 +17,21 @@ const EmergencyContacts = () => {
     { name: "", phone: "" },
   ]);
 
+  // Redirect to home if user has already completed onboarding
+  useEffect(() => {
+    const data = localStorage.getItem("guardian_data");
+    if (data) {
+      try {
+        const parsed = JSON.parse(data);
+        if (parsed.onboardingComplete) {
+          navigate("/home", { replace: true });
+        }
+      } catch (e) {
+        // Invalid data, let user continue onboarding
+      }
+    }
+  }, [navigate]);
+
   // Load saved contacts on mount
   useEffect(() => {
     const saved = localStorage.getItem("guardian_contacts");
