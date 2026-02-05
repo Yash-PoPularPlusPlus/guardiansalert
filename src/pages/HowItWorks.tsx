@@ -1,9 +1,25 @@
+import { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Mic, Check, ShieldCheck } from "lucide-react";
 
 const HowItWorks = () => {
   const navigate = useNavigate();
+
+  // Redirect to home if user has already completed onboarding
+  useEffect(() => {
+    const data = localStorage.getItem("guardian_data");
+    if (data) {
+      try {
+        const parsed = JSON.parse(data);
+        if (parsed.onboardingComplete) {
+          navigate("/home", { replace: true });
+        }
+      } catch (e) {
+        // Invalid data, let user continue onboarding
+      }
+    }
+  }, [navigate]);
 
   const features = [
     { text: "Always listening - no need to activate" },

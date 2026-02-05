@@ -3,6 +3,25 @@ import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
+// Check if user has already completed onboarding
+const useOnboardingRedirect = () => {
+  const navigate = useNavigate();
+  
+  useEffect(() => {
+    const data = localStorage.getItem("guardian_data");
+    if (data) {
+      try {
+        const parsed = JSON.parse(data);
+        if (parsed.onboardingComplete) {
+          navigate("/home", { replace: true });
+        }
+      } catch (e) {
+        // Invalid data, let user continue onboarding
+      }
+    }
+  }, [navigate]);
+};
+
 interface DisabilityOption {
   id: string;
   icon: string;
