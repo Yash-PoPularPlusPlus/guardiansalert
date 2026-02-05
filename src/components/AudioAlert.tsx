@@ -20,40 +20,27 @@ const AudioAlert = ({ emergencyType, onDismiss }: AudioAlertProps) => {
   const oscillatorRef = useRef<OscillatorNode | null>(null);
   const gainNodeRef = useRef<GainNode | null>(null);
   const sirenIntervalRef = useRef<NodeJS.Timeout | null>(null);
-  const voiceIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const cycleTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const isActiveRef = useRef(true);
   const [isPlaying, setIsPlaying] = useState(true);
-
-  const speakAnnouncement = () => {
-    if (!("speechSynthesis" in window)) return;
-
-    // Cancel any ongoing speech
-    window.speechSynthesis.cancel();
-
-    const message = `Emergency. ${emergencyLabels[emergencyType]} detected. Evacuate immediately. This is not a drill.`;
-    const utterance = new SpeechSynthesisUtterance(message);
-    utterance.volume = 1.0;
-    utterance.rate = 0.9;
-    utterance.pitch = 1.0;
-    utterance.lang = "en-US";
-
-    window.speechSynthesis.speak(utterance);
-  };
 
   const startSiren = () => {
     try {
+      if (!isActiveRef.current) return;
+      
       audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
       oscillatorRef.current = audioContextRef.current.createOscillator();
       gainNodeRef.current = audioContextRef.current.createGain();
 
       oscillatorRef.current.type = "sawtooth";
       oscillatorRef.current.frequency.setValueAtTime(800, audioContextRef.current.currentTime);
-      gainNodeRef.current.gain.setValueAtTime(1.0, audioContextRef.current.currentTime);
+      gainNodeRef.current.gain.setValueAtTime(0.7, audioContextRef.current.currentTime);
 
       oscillatorRef.current.connect(gainNodeRef.current);
       gainNodeRef.current.connect(audioContextRef.current.destination);
       oscillatorRef.current.start();
 
-      // Alternate between frequencies for siren effect
+      // Alternate between frequencies every 0.3 seconds
       let highFreq = true;
       sirenIntervalRef.current = setInterval(() => {
         if (oscillatorRef.current && audioContextRef.current) {
@@ -61,14 +48,13 @@ const AudioAlert = ({ emergencyType, onDismiss }: AudioAlertProps) => {
           oscillatorRef.current.frequency.setValueAtTime(freq, audioContextRef.current.currentTime);
           highFreq = !highFreq;
         }
-      }, 500);
+      }, 300);
     } catch (error) {
       console.error("Failed to start siren:", error);
     }
   };
 
-  const stopAllAudio = () => {
-    // Stop siren
+  const stopSiren = () => {
     if (sirenIntervalRef.current) {
       clearInterval(sirenIntervalRef.current);
       sirenIntervalRef.current = null;
@@ -85,12 +71,77 @@ const AudioAlert = ({ emergencyType, onDismiss }: AudioAlertProps) => {
       audioContextRef.current.close();
       audioContextRef.current = null;
     }
+  };
+
+  const speakAnnouncement = (): Promise<void> => {
+    return new Promise((resolve) => {
+      if (!("speechSynthesis" in window) || !isActiveRef.current) {
+        resolve();
+        return;
+      }
+
+      window.speechSynthesis.cancel();
+
+      const message = `Emergency. ${emergencyLabels[emergencyType]} detected. Evacuate immediately.`;
+      const utterance = new SpeechSynthesisUtterance(message);
+      utterance.volume = 1.0;
+      utterance.rate = 0.9;
+      utterance.pitch = 1.0;
+      utterance.lang = "en-US";
+
+      utterance.onend = () => resolve();
+      utterance.onerror = () => resolve();
+
+      window.speechSynthesis.speak(utterance);
+    });
+  };
+
+  const runCycle = async () => {
+    if (!isActiveRef.current) return;
+
+    // Step 1: Play siren for 3 seconds
+    startSiren();
+    
+    await new Promise<void>((resolve) => {
+      cycleTimeoutRef.current = setTimeout(resolve, 3000);
+    });
+
+    if (!isActiveRef.current) return;
+
+    // Step 2: Stop siren
+    stopSiren();
+
+    if (!isActiveRef.current) return;
+
+    // Step 3: Play voice announcement
+    await speakAnnouncement();
+
+    if (!isActiveRef.current) return;
+
+    // Step 4: Pause for 1 second
+    await new Promise<void>((resolve) => {
+      cycleTimeoutRef.current = setTimeout(resolve, 1000);
+    });
+
+    if (!isActiveRef.current) return;
+
+    // Step 5: Repeat
+    runCycle();
+  };
+
+  const stopAllAudio = () => {
+    isActiveRef.current = false;
+    
+    // Clear cycle timeout
+    if (cycleTimeoutRef.current) {
+      clearTimeout(cycleTimeoutRef.current);
+      cycleTimeoutRef.current = null;
+    }
+
+    // Stop siren
+    stopSiren();
 
     // Stop voice
-    if (voiceIntervalRef.current) {
-      clearInterval(voiceIntervalRef.current);
-      voiceIntervalRef.current = null;
-    }
     if ("speechSynthesis" in window) {
       window.speechSynthesis.cancel();
     }
@@ -104,16 +155,8 @@ const AudioAlert = ({ emergencyType, onDismiss }: AudioAlertProps) => {
   };
 
   useEffect(() => {
-    // Start siren
-    startSiren();
-
-    // Initial voice announcement
-    speakAnnouncement();
-
-    // Repeat voice announcement every 10 seconds
-    voiceIntervalRef.current = setInterval(() => {
-      speakAnnouncement();
-    }, 10000);
+    isActiveRef.current = true;
+    runCycle();
 
     return () => {
       stopAllAudio();
