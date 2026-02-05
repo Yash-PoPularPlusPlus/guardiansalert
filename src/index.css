@@ -39,6 +39,10 @@
     --guardian-blue-light: 217 91% 95%;
     --guardian-success: 142 76% 36%;
     --guardian-success-light: 142 76% 95%;
+    
+    /* Emergency alert colors */
+    --emergency-red: 0 84% 50%;
+    --emergency-yellow: 45 96% 56%;
   }
 
   .dark {
@@ -94,4 +98,17 @@
   .guardian-subtext {
     @apply text-muted-foreground text-base;
   }
+}
+
+@keyframes emergency-flash {
+  0%, 100% {
+    background-color: hsl(var(--emergency-red));
+  }
+  50% {
+    background-color: hsl(var(--emergency-yellow));
+  }
+}
+
+.animate-emergency-flash {
+  animation: emergency-flash 0.5s ease-in-out infinite;
 }
