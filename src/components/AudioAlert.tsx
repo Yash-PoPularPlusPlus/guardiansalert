@@ -22,44 +22,48 @@ const AudioAlert = ({ emergencyType, onDismiss }: AudioAlertProps) => {
   const sirenIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const cycleTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const isActiveRef = useRef(true);
-  const speechUnlockedRef = useRef(false);
   const [isPlaying, setIsPlaying] = useState(true);
   const [currentPhase, setCurrentPhase] = useState<"siren" | "voice" | "pause">("siren");
 
-  // Unlock speech synthesis - must happen synchronously in user gesture
-  const unlockSpeechSynthesis = () => {
-    if (!("speechSynthesis" in window) || speechUnlockedRef.current) return;
-    
-    // Speak empty string to unlock
-    const unlock = new SpeechSynthesisUtterance("");
-    window.speechSynthesis.speak(unlock);
-    speechUnlockedRef.current = true;
+  const getAudioContext = () => {
+    if (!audioContextRef.current || audioContextRef.current.state === "closed") {
+      audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
+    }
+    if (audioContextRef.current.state === "suspended") {
+      audioContextRef.current.resume();
+    }
+    return audioContextRef.current;
   };
 
   const startSiren = () => {
     try {
       if (!isActiveRef.current) return;
       
-      audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
-      oscillatorRef.current = audioContextRef.current.createOscillator();
-      gainNodeRef.current = audioContextRef.current.createGain();
+      const ctx = getAudioContext();
+      
+      // Create new oscillator (oscillators can only be started once)
+      oscillatorRef.current = ctx.createOscillator();
+      gainNodeRef.current = ctx.createGain();
 
       oscillatorRef.current.type = "sawtooth";
-      oscillatorRef.current.frequency.setValueAtTime(800, audioContextRef.current.currentTime);
-      gainNodeRef.current.gain.setValueAtTime(0.7, audioContextRef.current.currentTime);
+      oscillatorRef.current.frequency.setValueAtTime(800, ctx.currentTime);
+      gainNodeRef.current.gain.setValueAtTime(0.7, ctx.currentTime);
 
       oscillatorRef.current.connect(gainNodeRef.current);
-      gainNodeRef.current.connect(audioContextRef.current.destination);
+      gainNodeRef.current.connect(ctx.destination);
       oscillatorRef.current.start();
 
+      // Alternate between frequencies every 0.3 seconds
       let highFreq = true;
       sirenIntervalRef.current = setInterval(() => {
-        if (oscillatorRef.current && audioContextRef.current) {
+        if (oscillatorRef.current && audioContextRef.current && audioContextRef.current.state === "running") {
           const freq = highFreq ? 600 : 800;
           oscillatorRef.current.frequency.setValueAtTime(freq, audioContextRef.current.currentTime);
           highFreq = !highFreq;
         }
       }, 300);
+      
+      console.log("Siren started");
     } catch (error) {
       console.error("Failed to start siren:", error);
     }
@@ -73,13 +77,18 @@ const AudioAlert = ({ emergencyType, onDismiss }: AudioAlertProps) => {
     if (oscillatorRef.current) {
       try {
         oscillatorRef.current.stop();
+        oscillatorRef.current.disconnect();
       } catch (e) {}
       oscillatorRef.current = null;
     }
-    if (audioContextRef.current) {
-      audioContextRef.current.close();
-      audioContextRef.current = null;
+    if (gainNodeRef.current) {
+      try {
+        gainNodeRef.current.disconnect();
+      } catch (e) {}
+      gainNodeRef.current = null;
     }
+    console.log("Siren stopped");
+    // Don't close AudioContext - keep it alive for next cycle
   };
 
   const speakAnnouncement = (): Promise<void> => {
@@ -90,7 +99,6 @@ const AudioAlert = ({ emergencyType, onDismiss }: AudioAlertProps) => {
         return;
       }
 
-      // Cancel any pending speech
       window.speechSynthesis.cancel();
 
       const message = `Emergency. ${emergencyLabels[emergencyType]} detected. Evacuate immediately.`;
@@ -100,7 +108,6 @@ const AudioAlert = ({ emergencyType, onDismiss }: AudioAlertProps) => {
       utterance.pitch = 1.0;
       utterance.lang = "en-US";
 
-      // Get available voices and prefer English
       const voices = window.speechSynthesis.getVoices();
       const englishVoice = voices.find(v => v.lang === "en-US") || voices.find(v => v.lang.startsWith("en"));
       if (englishVoice) {
@@ -121,7 +128,6 @@ const AudioAlert = ({ emergencyType, onDismiss }: AudioAlertProps) => {
         safeResolve();
       };
 
-      // Fallback timeout in case events don't fire
       setTimeout(safeResolve, 5000);
 
       console.log("Speaking:", message);
@@ -131,7 +137,7 @@ const AudioAlert = ({ emergencyType, onDismiss }: AudioAlertProps) => {
 
   const runCycle = async () => {
     while (isActiveRef.current) {
-      // Siren phase
+      // Siren phase (3 seconds)
       setCurrentPhase("siren");
       startSiren();
       
@@ -167,6 +173,12 @@ const AudioAlert = ({ emergencyType, onDismiss }: AudioAlertProps) => {
     }
 
     stopSiren();
+    
+    // Now close the AudioContext
+    if (audioContextRef.current) {
+      audioContextRef.current.close();
+      audioContextRef.current = null;
+    }
 
     if ("speechSynthesis" in window) {
       window.speechSynthesis.cancel();
@@ -183,7 +195,6 @@ const AudioAlert = ({ emergencyType, onDismiss }: AudioAlertProps) => {
   useEffect(() => {
     isActiveRef.current = true;
     
-    // Load voices
     if ("speechSynthesis" in window) {
       window.speechSynthesis.getVoices();
       window.speechSynthesis.onvoiceschanged = () => {
@@ -191,7 +202,6 @@ const AudioAlert = ({ emergencyType, onDismiss }: AudioAlertProps) => {
       };
     }
     
-    // Small delay then start cycle
     setTimeout(() => {
       if (isActiveRef.current) {
         runCycle();
@@ -230,13 +240,10 @@ const AudioAlert = ({ emergencyType, onDismiss }: AudioAlertProps) => {
 
 export default AudioAlert;
 
-// Export unlock function to be called from button click
 export const unlockAudioForEmergency = () => {
-  // Unlock AudioContext
   const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
   ctx.resume();
   
-  // Unlock Speech Synthesis
   if ("speechSynthesis" in window) {
     const unlock = new SpeechSynthesisUtterance("");
     window.speechSynthesis.speak(unlock);
