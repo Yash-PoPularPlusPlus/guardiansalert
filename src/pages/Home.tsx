@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { Shield, Flame, Globe, Waves, Settings, MessageSquare, AlertTriangle, CheckCircle, Users, Clock, Hand } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
@@ -78,6 +78,15 @@ const Home = () => {
   const { alertState, triggerPersonalizedAlert, dismissAlert } = usePersonalizedAlert();
   const { notifyEmergencyContacts, isSending, resetSmsFlag } = useSmsNotification();
 
+  // Store latest triggerPersonalizedAlert in ref to avoid stale closures
+  const triggerAlertRef = useRef(triggerPersonalizedAlert);
+  const notifyContactsRef = useRef(notifyEmergencyContacts);
+  
+  useEffect(() => {
+    triggerAlertRef.current = triggerPersonalizedAlert;
+    notifyContactsRef.current = notifyEmergencyContacts;
+  }, [triggerPersonalizedAlert, notifyEmergencyContacts]);
+
   useEffect(() => {
     const data = localStorage.getItem("guardian_data");
     if (!data) {
@@ -136,17 +145,20 @@ const Home = () => {
   };
 
   // Automatic detection callback (primary method)
-  const handleAutoDetectedAlert = useCallback(async (type: EmergencyType) => {
+  // Using refs to avoid stale closure issues with async audio detection
+  const handleAutoDetectedAlert = useCallback((type: EmergencyType) => {
+    console.log("[Guardian] Auto-detected alert triggered:", type);
+    
     // Trigger alert immediately - this shows the personalized alert UI
-    triggerPersonalizedAlert(type);
+    triggerAlertRef.current(type);
     
     // Log the automatic detection
     const updated = addDetectionEntry(type, "automatic");
     setActivityLog(updated);
     
     // Send SMS to emergency contacts (same as manual trigger)
-    await notifyEmergencyContacts(type);
-  }, [triggerPersonalizedAlert, notifyEmergencyContacts]);
+    notifyContactsRef.current(type);
+  }, []);
 
   const getProfileLabel = () => {
     if (currentProfile === "custom") return "Custom";
