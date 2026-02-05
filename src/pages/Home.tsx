@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { Shield, Flame, Globe, Waves, Settings, MessageSquare, AlertTriangle, CheckCircle, Users } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
@@ -15,6 +15,7 @@ import AudioAlert, { unlockAudioForEmergency } from "@/components/AudioAlert";
 import CognitiveAlert from "@/components/CognitiveAlert";
 import DeafBlindAlert from "@/components/DeafBlindAlert";
 import TwilioSettingsModal from "@/components/TwilioSettingsModal";
+import AudioMonitor from "@/components/AudioMonitor";
 import {
   usePersonalizedAlert,
   getDisabilities,
