@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Shield, Flame, Globe, Waves, Settings, MessageSquare, AlertTriangle, CheckCircle } from "lucide-react";
+import { Shield, Flame, Globe, Waves, Settings, MessageSquare, AlertTriangle, CheckCircle, Users } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import {
   Select,
@@ -9,6 +9,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Badge } from "@/components/ui/badge";
 import VisualAlert from "@/components/VisualAlert";
 import AudioAlert, { unlockAudioForEmergency } from "@/components/AudioAlert";
 import CognitiveAlert from "@/components/CognitiveAlert";
@@ -37,22 +38,25 @@ const EMERGENCY_CARDS = [
     type: "fire" as EmergencyType,
     icon: Flame,
     title: "Fire Emergency",
-    gradient: "from-red-500 to-red-700",
-    hoverGradient: "hover:from-red-600 hover:to-red-800",
+    emoji: "🔥",
+    gradient: "from-red-500 to-red-600",
+    shadow: "shadow-red-500/25",
   },
   {
     type: "earthquake" as EmergencyType,
     icon: Globe,
     title: "Earthquake",
-    gradient: "from-orange-500 to-orange-700",
-    hoverGradient: "hover:from-orange-600 hover:to-orange-800",
+    emoji: "🌍",
+    gradient: "from-orange-500 to-orange-600",
+    shadow: "shadow-orange-500/25",
   },
   {
     type: "flood" as EmergencyType,
     icon: Waves,
     title: "Flood Warning",
-    gradient: "from-blue-500 to-blue-700",
-    hoverGradient: "hover:from-blue-600 hover:to-blue-800",
+    emoji: "🌊",
+    gradient: "from-blue-500 to-blue-600",
+    shadow: "shadow-blue-500/25",
   },
 ];
 
@@ -165,81 +169,73 @@ const Home = () => {
       {renderAlert()}
       <TwilioSettingsModal open={showSettings} onOpenChange={setShowSettings} />
       
-      <div className="guardian-container items-center text-center">
-        <div className="flex flex-col items-center gap-6 w-full max-w-sm">
-          {/* Header with Settings */}
-          <div className="w-full flex items-center justify-between">
-            <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-primary/10">
-              <Shield className="w-5 h-5 text-primary" />
-              <span className="text-sm font-medium text-primary">Guardian Alert Active</span>
+      <div className="min-h-screen bg-background flex flex-col">
+        {/* Header */}
+        <header className="flex items-center justify-between px-5 py-4 border-b border-border bg-card">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-primary flex items-center justify-center">
+              <Shield className="w-5 h-5 text-primary-foreground" />
             </div>
-            <button
-              onClick={() => setShowSettings(true)}
-              className="p-2 rounded-full hover:bg-muted transition-colors"
-              aria-label="Settings"
-            >
-              <Settings className="w-5 h-5 text-muted-foreground" />
-            </button>
-          </div>
-
-          {/* SMS Status */}
-          <div className="w-full flex items-center gap-3 p-3 rounded-lg bg-muted/30 border border-border">
-            <MessageSquare className="w-5 h-5 text-muted-foreground" />
-            <div className="flex-1 text-left">
-              {smsStatus.configured ? (
-                <div className="flex items-center gap-2">
-                  <CheckCircle className="w-4 h-4 text-green-600" />
-                  <span className="text-sm">SMS: Enabled ({smsStatus.contactCount} contacts)</span>
-                </div>
-              ) : (
-                <div className="flex items-center gap-2">
-                  <AlertTriangle className="w-4 h-4 text-amber-500" />
-                  <span className="text-sm text-muted-foreground">SMS: Not configured</span>
-                </div>
-              )}
+            <div>
+              <h1 className="text-lg font-bold text-foreground">Guardian Alert</h1>
+              <p className="text-xs text-muted-foreground">Emergency Assistant</p>
             </div>
           </div>
+          <button
+            onClick={() => setShowSettings(true)}
+            className="w-10 h-10 rounded-xl bg-muted flex items-center justify-center hover:bg-muted/80 transition-colors active:scale-95"
+            aria-label="Settings"
+          >
+            <Settings className="w-5 h-5 text-muted-foreground" />
+          </button>
+        </header>
 
-          {/* Current Profile Display */}
-          <div className="w-full p-4 rounded-xl bg-muted/50 border border-border">
-            <p className="text-sm text-muted-foreground mb-1">Current Profile</p>
-            <p className="text-xl font-bold text-foreground">{getProfileLabel()}</p>
+        {/* Main Content */}
+        <main className="flex-1 px-5 py-6 space-y-6">
+          {/* Profile Section */}
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-sm font-medium text-muted-foreground">Current Profile</span>
+              <Badge variant="secondary" className="text-sm font-semibold px-3 py-1">
+                {getProfileLabel()}
+              </Badge>
+            </div>
+            
+            {/* Profile Switcher */}
+            <div className="bg-card rounded-xl p-4 border border-border">
+              <label className="text-sm font-medium text-foreground mb-2 block">
+                Demo as:
+              </label>
+              <Select value={currentProfile} onValueChange={handleProfileChange}>
+                <SelectTrigger className="w-full h-12 text-base">
+                  <SelectValue placeholder="Select a profile" />
+                </SelectTrigger>
+                <SelectContent>
+                  {DEMO_PROFILES.map((profile) => (
+                    <SelectItem key={profile.value} value={profile.value} className="text-base py-3">
+                      {profile.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
 
-          {/* Demo Profile Switcher */}
-          <div className="w-full">
-            <label className="text-sm font-medium text-muted-foreground mb-2 block">
-              Demo as:
-            </label>
-            <Select value={currentProfile} onValueChange={handleProfileChange}>
-              <SelectTrigger className="w-full">
-                <SelectValue placeholder="Select a profile" />
-              </SelectTrigger>
-              <SelectContent>
-                {DEMO_PROFILES.map((profile) => (
-                  <SelectItem key={profile.value} value={profile.value}>
-                    {profile.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          {/* Emergency Trigger Cards */}
-          <div className="w-full space-y-3 mt-4">
-            <p className="text-sm font-medium text-muted-foreground">Simulate Emergency:</p>
+          {/* Emergency Cards */}
+          <div className="space-y-3">
+            <p className="text-sm font-medium text-muted-foreground">Simulate Emergency</p>
             
             {EMERGENCY_CARDS.map((card) => (
               <Card
                 key={card.type}
-                className={`cursor-pointer transition-all duration-200 bg-gradient-to-r ${card.gradient} ${card.hoverGradient} border-0 shadow-lg hover:shadow-xl hover:scale-[1.02] active:scale-[0.98]`}
+                className={`cursor-pointer transition-all duration-200 bg-gradient-to-r ${card.gradient} border-0 shadow-lg ${card.shadow} hover:shadow-xl active:scale-[0.98] rounded-xl overflow-hidden`}
                 onClick={() => handleEmergencyTrigger(card.type)}
               >
-                <CardContent className="flex items-center gap-4 p-4">
-                  <div className="w-12 h-12 rounded-full bg-white/20 flex items-center justify-center">
-                    <card.icon className="w-6 h-6 text-white" />
+                <CardContent className="flex items-center gap-4 p-5">
+                  <div className="w-14 h-14 rounded-xl bg-white/20 flex items-center justify-center text-3xl">
+                    {card.emoji}
                   </div>
-                  <div className="flex-1 text-left">
+                  <div className="flex-1">
                     <h3 className="font-bold text-white text-lg">{card.title}</h3>
                     <p className="text-white/70 text-sm">Tap to simulate</p>
                   </div>
@@ -247,7 +243,33 @@ const Home = () => {
               </Card>
             ))}
           </div>
-        </div>
+        </main>
+
+        {/* Footer - SMS Status */}
+        <footer className="px-5 py-4 border-t border-border bg-card">
+          <div className="flex items-center gap-3 p-3 rounded-xl bg-muted/50">
+            <div className="w-10 h-10 rounded-lg bg-background flex items-center justify-center">
+              <MessageSquare className="w-5 h-5 text-muted-foreground" />
+            </div>
+            <div className="flex-1">
+              {smsStatus.configured ? (
+                <div className="flex items-center gap-2">
+                  <CheckCircle className="w-4 h-4 text-green-600" />
+                  <span className="text-sm font-medium text-foreground">SMS Enabled</span>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2">
+                  <AlertTriangle className="w-4 h-4 text-amber-500" />
+                  <span className="text-sm font-medium text-muted-foreground">SMS Not configured</span>
+                </div>
+              )}
+              <div className="flex items-center gap-1 text-xs text-muted-foreground mt-0.5">
+                <Users className="w-3 h-3" />
+                <span>{smsStatus.contactCount} emergency contact{smsStatus.contactCount !== 1 ? 's' : ''}</span>
+              </div>
+            </div>
+          </div>
+        </footer>
       </div>
     </>
   );

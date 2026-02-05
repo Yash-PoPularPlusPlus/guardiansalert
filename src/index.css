@@ -100,6 +100,38 @@
   }
 }
 
+/* Toast auto-dismiss timing */
+[data-sonner-toast] {
+  --toast-duration: 3000ms;
+}
+
+/* Smooth alert transitions */
+.alert-overlay {
+  animation: fadeIn 0.2s ease-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes fadeOut {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+.alert-fade-out {
+  animation: fadeOut 0.2s ease-out forwards;
+}
+
 @keyframes emergency-flash {
   0%, 100% {
     background-color: hsl(var(--emergency-red));
