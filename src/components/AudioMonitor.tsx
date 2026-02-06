@@ -16,11 +16,10 @@ export interface AudioMonitorHandle {
 const AudioMonitor = forwardRef<AudioMonitorHandle, AudioMonitorProps>(({ enabled, onAlertTriggered }, ref) => {
   const [showDetectionAlert, setShowDetectionAlert] = useState(false);
   
-  // Store callback in ref to always have the latest version
+  // Store callback in ref - update SYNCHRONOUSLY during render (not in useEffect)
+  // This prevents race conditions where detection triggers before useEffect runs
   const onAlertTriggeredRef = useRef(onAlertTriggered);
-  useEffect(() => {
-    onAlertTriggeredRef.current = onAlertTriggered;
-  }, [onAlertTriggered]);
+  onAlertTriggeredRef.current = onAlertTriggered; // Always current
 
   // This callback is stable (empty deps) but uses ref to call the latest function
   const handleFireAlarmDetected = useCallback(() => {
