@@ -136,31 +136,22 @@ const Home = () => {
     await notifyEmergencyContacts(type);
   };
 
-  // Store references to the latest functions to avoid stale closures
-  const triggerAlertRef = useRef(triggerPersonalizedAlert);
-  const notifyContactsRef = useRef(notifyEmergencyContacts);
-  
-  // Keep refs updated with the latest functions
-  useEffect(() => {
-    triggerAlertRef.current = triggerPersonalizedAlert;
-    notifyContactsRef.current = notifyEmergencyContacts;
-  });
-
-  // CRITICAL: This callback is passed to AudioMonitor
-  // It MUST be stable (empty deps) and use refs to access latest functions
-  const handleAutoDetectedAlert = useCallback((type: EmergencyType) => {
+  // CRITICAL: Direct callback - NOT using useCallback to avoid stale closures
+  // This function will be recreated on every render, which is what we want
+  // The AudioMonitor stores this in a ref internally, so it always gets the latest version
+  const handleAutoDetectedAlert = (type: EmergencyType) => {
     console.log("[Guardian] ========================================");
     console.log("[Guardian] AUTO-DETECTION TRIGGERED!");
     console.log("[Guardian] Emergency type:", type);
-    console.log("[Guardian] triggerAlertRef.current:", typeof triggerAlertRef.current);
+    console.log("[Guardian] alertState before trigger:", alertState);
     console.log("[Guardian] ========================================");
     
     // Unlock audio for browsers that require user interaction
     unlockAudioForEmergency();
     
-    // CRITICAL: Use refs to get the CURRENT functions
-    console.log("[Guardian] Calling triggerPersonalizedAlert via ref...");
-    triggerAlertRef.current(type);
+    // Directly call the functions - no refs needed since this is recreated each render
+    console.log("[Guardian] Calling triggerPersonalizedAlert...");
+    triggerPersonalizedAlert(type);
     console.log("[Guardian] Alert triggered!");
     
     // Log the automatic detection
@@ -170,10 +161,10 @@ const Home = () => {
     console.log("[Guardian] Activity log updated");
     
     // Send SMS to emergency contacts
-    console.log("[Guardian] Sending SMS notifications via ref...");
-    notifyContactsRef.current(type);
+    console.log("[Guardian] Sending SMS notifications...");
+    notifyEmergencyContacts(type);
     console.log("[Guardian] SMS notifications initiated");
-  }, []); // Empty deps - refs handle the updates
+  };
 
   const getProfileLabel = () => {
     if (currentProfile === "custom") return "Custom";

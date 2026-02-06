@@ -1,4 +1,4 @@
-import { useEffect, useCallback, useState, forwardRef, useImperativeHandle } from "react";
+import { useEffect, useCallback, useState, forwardRef, useImperativeHandle, useRef } from "react";
 import { Mic, MicOff, AlertCircle, Flame, Shield, Clock, RotateCcw } from "lucide-react";
 import { useFireAlarmDetection } from "@/hooks/useFireAlarmDetection";
 import { unlockAudioForEmergency } from "@/components/AudioAlert";
@@ -15,11 +15,18 @@ export interface AudioMonitorHandle {
 
 const AudioMonitor = forwardRef<AudioMonitorHandle, AudioMonitorProps>(({ enabled, onAlertTriggered }, ref) => {
   const [showDetectionAlert, setShowDetectionAlert] = useState(false);
+  
+  // Store callback in ref to always have the latest version
+  const onAlertTriggeredRef = useRef(onAlertTriggered);
+  useEffect(() => {
+    onAlertTriggeredRef.current = onAlertTriggered;
+  }, [onAlertTriggered]);
 
+  // This callback is stable (empty deps) but uses ref to call the latest function
   const handleFireAlarmDetected = useCallback(() => {
     console.log("[AudioMonitor] ========================================");
     console.log("[AudioMonitor] Fire alarm CONFIRMED! Triggering alert...");
-    console.log("[AudioMonitor] onAlertTriggered function exists:", !!onAlertTriggered);
+    console.log("[AudioMonitor] onAlertTriggeredRef.current exists:", !!onAlertTriggeredRef.current);
     console.log("[AudioMonitor] ========================================");
     
     // Show confirmed state briefly
@@ -34,11 +41,10 @@ const AudioMonitor = forwardRef<AudioMonitorHandle, AudioMonitorProps>(({ enable
     // Unlock audio for browsers
     unlockAudioForEmergency();
 
-    // CRITICAL: Call the parent callback IMMEDIATELY
-    // This triggers the full-screen alert and SMS notifications
-    console.log("[AudioMonitor] Calling onAlertTriggered('fire')...");
+    // CRITICAL: Call the parent callback via ref to get LATEST version
+    console.log("[AudioMonitor] Calling onAlertTriggeredRef.current('fire')...");
     try {
-      onAlertTriggered("fire");
+      onAlertTriggeredRef.current("fire");
       console.log("[AudioMonitor] onAlertTriggered called successfully!");
     } catch (error) {
       console.error("[AudioMonitor] Error calling onAlertTriggered:", error);
@@ -48,7 +54,7 @@ const AudioMonitor = forwardRef<AudioMonitorHandle, AudioMonitorProps>(({ enable
     setTimeout(() => {
       setShowDetectionAlert(false);
     }, 2000);
-  }, [onAlertTriggered]);
+  }, []); // Empty deps - ref handles getting latest callback
 
   const { 
     isListening, 
