@@ -1,6 +1,6 @@
-import { useEffect, useState, useRef, useCallback } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import { Shield, Flame, Globe, Waves, Settings, MessageSquare, AlertTriangle, CheckCircle, Users, Clock, Hand } from "lucide-react";
+import { Shield, Flame, Globe, Waves, MessageSquare, CheckCircle, Users, Clock, Hand } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import {
   Select,
@@ -14,7 +14,6 @@ import VisualAlert from "@/components/VisualAlert";
 import AudioAlert, { unlockAudioForEmergency } from "@/components/AudioAlert";
 import CognitiveAlert from "@/components/CognitiveAlert";
 import DeafBlindAlert from "@/components/DeafBlindAlert";
-import TwilioSettingsModal from "@/components/TwilioSettingsModal";
 import AudioMonitor, { type AudioMonitorHandle } from "@/components/AudioMonitor";
 import {
   usePersonalizedAlert,
@@ -23,7 +22,7 @@ import {
   type EmergencyType,
   type DisabilityType,
 } from "@/hooks/usePersonalizedAlert";
-import { useSmsNotification, getTwilioSettings, getEmergencyContacts } from "@/hooks/useSmsNotification";
+import { useSmsNotification, getEmergencyContacts } from "@/hooks/useSmsNotification";
 import { 
   getDetectionLog, 
   addDetectionEntry, 
@@ -72,11 +71,10 @@ const Home = () => {
   const navigate = useNavigate();
   const [isComplete, setIsComplete] = useState(false);
   const [currentProfile, setCurrentProfile] = useState<string>("");
-  const [showSettings, setShowSettings] = useState(false);
-  const [smsStatus, setSmsStatus] = useState({ configured: false, contactCount: 0 });
+  const [contactCount, setContactCount] = useState(0);
   const [activityLog, setActivityLog] = useState<DetectionLogEntry[]>([]);
   const { alertState, triggerPersonalizedAlert, dismissAlert } = usePersonalizedAlert();
-  const { notifyEmergencyContacts, isSending, resetSmsFlag } = useSmsNotification();
+  const { notifyEmergencyContacts, resetSmsFlag } = useSmsNotification();
   const audioMonitorRef = useRef<AudioMonitorHandle>(null);
 
   useEffect(() => {
@@ -102,17 +100,13 @@ const Home = () => {
       setCurrentProfile("custom");
     }
 
-    // Check SMS status
-    const twilioSettings = getTwilioSettings();
+    // Get contact count
     const contacts = getEmergencyContacts();
-    setSmsStatus({
-      configured: !!twilioSettings,
-      contactCount: contacts.length,
-    });
+    setContactCount(contacts.length);
 
     // Load activity log
     setActivityLog(getDetectionLog());
-  }, [navigate, showSettings]);
+  }, [navigate]);
 
   const handleProfileChange = (value: string) => {
     const profile = DEMO_PROFILES.find(p => p.value === value);
@@ -124,28 +118,23 @@ const Home = () => {
 
   // Manual emergency trigger (backup method)
   const handleManualTrigger = async (type: EmergencyType) => {
-    // Unlock audio for browsers that require user interaction
     unlockAudioForEmergency();
     triggerPersonalizedAlert(type);
     
-    // Log the manual trigger
     const updated = addDetectionEntry(type, "manual");
     setActivityLog(updated);
     
-    // Send SMS to emergency contacts
     await notifyEmergencyContacts(type);
   };
 
-  // INSTANT callback - trigger alert immediately, do everything else in parallel
+  // INSTANT callback - trigger alert immediately
   const handleAutoDetectedAlert = (type: EmergencyType) => {
-    // CRITICAL: Show alert FIRST - absolute minimum code before UI
     unlockAudioForEmergency();
     triggerPersonalizedAlert(type);
     
-    // Everything below happens AFTER alert is showing (non-blocking)
     const updated = addDetectionEntry(type, "automatic");
     setActivityLog(updated);
-    notifyEmergencyContacts(type); // Already async, runs in parallel
+    notifyEmergencyContacts(type);
   };
 
   const getProfileLabel = () => {
@@ -162,7 +151,6 @@ const Home = () => {
     audioMonitorRef.current?.resetCooldown();
   };
 
-  // Render the appropriate alert based on config
   const renderAlert = () => {
     if (!alertState.isActive || !alertState.config || !alertState.emergencyType) {
       return null;
@@ -179,7 +167,6 @@ const Home = () => {
     }
 
     if (config.showVisual && !config.showAudio) {
-      // Deaf user - only visual alert
       return (
         <VisualAlert 
           emergencyType={emergencyType} 
@@ -190,7 +177,6 @@ const Home = () => {
     }
     
     if (config.showAudio && !config.showVisual) {
-      // Blind user - only audio alert
       return (
         <AudioAlert 
           emergencyType={emergencyType} 
@@ -199,7 +185,6 @@ const Home = () => {
       );
     }
 
-    // Both visual and audio
     return (
       <>
         <VisualAlert 
@@ -218,7 +203,6 @@ const Home = () => {
   return (
     <>
       {renderAlert()}
-      <TwilioSettingsModal open={showSettings} onOpenChange={setShowSettings} />
       <AudioMonitor 
         ref={audioMonitorRef}
         enabled={isComplete && !alertState.isActive} 
@@ -237,13 +221,6 @@ const Home = () => {
               <p className="text-xs text-muted-foreground">Emergency Assistant</p>
             </div>
           </div>
-          <button
-            onClick={() => setShowSettings(true)}
-            className="w-10 h-10 rounded-xl bg-muted flex items-center justify-center hover:bg-muted/80 transition-colors active:scale-95"
-            aria-label="Settings"
-          >
-            <Settings className="w-5 h-5 text-muted-foreground" />
-          </button>
         </header>
 
         {/* Main Content */}
@@ -277,19 +254,7 @@ const Home = () => {
             </div>
           </div>
 
-          {/* Test Auto-Detection Button (for debugging) */}
-          <div className="space-y-2">
-            <p className="text-xs text-muted-foreground">Test automatic detection:</p>
-            <button
-              onClick={() => {
-                console.log("[TEST] Simulating auto-detection...");
-                handleAutoDetectedAlert("fire");
-              }}
-              className="w-full py-3 px-4 bg-amber-500 hover:bg-amber-600 text-white font-medium rounded-xl transition-colors"
-            >
-              🧪 Test Auto-Detection (Fire)
-            </button>
-          </div>
+          {/* Manual Alert Cards */}
           <div className="space-y-3">
             <div>
               <div className="flex items-center gap-2 mb-1">
@@ -353,27 +318,20 @@ const Home = () => {
           </div>
         </main>
 
-        {/* Footer - SMS Status */}
+        {/* Footer - SMS Status (always enabled) */}
         <footer className="px-5 py-4 border-t border-border bg-card">
           <div className="flex items-center gap-3 p-3 rounded-xl bg-muted/50">
             <div className="w-10 h-10 rounded-lg bg-background flex items-center justify-center">
               <MessageSquare className="w-5 h-5 text-muted-foreground" />
             </div>
             <div className="flex-1">
-              {smsStatus.configured ? (
-                <div className="flex items-center gap-2">
-                  <CheckCircle className="w-4 h-4 text-green-600" />
-                  <span className="text-sm font-medium text-foreground">SMS Enabled</span>
-                </div>
-              ) : (
-                <div className="flex items-center gap-2">
-                  <AlertTriangle className="w-4 h-4 text-amber-500" />
-                  <span className="text-sm font-medium text-muted-foreground">SMS Not configured</span>
-                </div>
-              )}
+              <div className="flex items-center gap-2">
+                <CheckCircle className="w-4 h-4 text-green-600" />
+                <span className="text-sm font-medium text-foreground">SMS Enabled</span>
+              </div>
               <div className="flex items-center gap-1 text-xs text-muted-foreground mt-0.5">
                 <Users className="w-3 h-3" />
-                <span>{smsStatus.contactCount} emergency contact{smsStatus.contactCount !== 1 ? 's' : ''}</span>
+                <span>{contactCount} emergency contact{contactCount !== 1 ? 's' : ''}</span>
               </div>
             </div>
           </div>

@@ -3,35 +3,10 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import type { EmergencyType } from "./usePersonalizedAlert";
 
-export interface TwilioSettings {
-  twilioAccountSid: string;
-  twilioAuthToken: string;
-  twilioPhoneNumber: string;
-}
-
 export interface Contact {
   name: string;
   phone: string;
 }
-
-export const getTwilioSettings = (): TwilioSettings | null => {
-  try {
-    const saved = localStorage.getItem("guardian_twilio");
-    if (saved) {
-      const parsed = JSON.parse(saved);
-      if (parsed.twilioAccountSid && parsed.twilioAuthToken && parsed.twilioPhoneNumber) {
-        return parsed;
-      }
-    }
-  } catch (e) {
-    console.error("Failed to parse Twilio settings:", e);
-  }
-  return null;
-};
-
-export const saveTwilioSettings = (settings: TwilioSettings) => {
-  localStorage.setItem("guardian_twilio", JSON.stringify(settings));
-};
 
 export const getEmergencyContacts = (): Contact[] => {
   try {
@@ -107,7 +82,6 @@ export const useSmsNotification = () => {
   const notifyEmergencyContacts = useCallback(async (emergencyType: EmergencyType) => {
     // Check if already sent for this alert
     if (smsSentForCurrentAlert) {
-      console.log("SMS already sent for this alert, skipping");
       return { success: false, reason: "already_sent" };
     }
 
@@ -115,24 +89,12 @@ export const useSmsNotification = () => {
     const lastSent = getLastSmsSentTime();
     const timeSinceLast = Date.now() - lastSent;
     if (timeSinceLast < SMS_COOLDOWN_MS) {
-      const remainingSeconds = Math.ceil((SMS_COOLDOWN_MS - timeSinceLast) / 1000);
-      toast({
-        title: "SMS already sent",
-        description: `Wait ${remainingSeconds}s before sending again`,
-      });
       return { success: false, reason: "cooldown" };
     }
 
-    const settings = getTwilioSettings();
     const contacts = getEmergencyContacts();
 
-    if (!settings) {
-      console.log("Twilio not configured, skipping SMS");
-      return { success: false, reason: "not_configured" };
-    }
-
     if (contacts.length === 0) {
-      console.log("No emergency contacts, skipping SMS");
       return { success: false, reason: "no_contacts" };
     }
 
@@ -143,11 +105,9 @@ export const useSmsNotification = () => {
       const locationUrl = await getCurrentLocation();
       const userName = getUserName();
 
+      // Twilio credentials are now server-side - just send the data
       const { data, error } = await supabase.functions.invoke("send-sms", {
         body: {
-          accountSid: settings.twilioAccountSid,
-          authToken: settings.twilioAuthToken,
-          twilioPhoneNumber: settings.twilioPhoneNumber,
           contacts,
           userName,
           emergencyType,
@@ -156,10 +116,9 @@ export const useSmsNotification = () => {
       });
 
       if (error) {
-        console.error("SMS error:", error);
         toast({
           title: "SMS failed",
-          description: "Check Twilio settings",
+          description: "Could not send emergency alert",
           variant: "destructive",
         });
         return { success: false, reason: "api_error" };
@@ -183,13 +142,12 @@ export const useSmsNotification = () => {
       } else {
         toast({
           title: "SMS failed",
-          description: data?.error || "Check Twilio settings",
+          description: data?.error || "Could not send",
           variant: "destructive",
         });
         return { success: false, reason: "send_failed" };
       }
     } catch (error) {
-      console.error("SMS error:", error);
       toast({
         title: "SMS failed",
         description: "Check settings",
@@ -202,17 +160,7 @@ export const useSmsNotification = () => {
   }, [smsSentForCurrentAlert]);
 
   const sendTestSms = useCallback(async () => {
-    const settings = getTwilioSettings();
     const contacts = getEmergencyContacts();
-
-    if (!settings) {
-      toast({
-        title: "Configure Twilio first",
-        description: "Add your Twilio credentials in settings",
-        variant: "destructive",
-      });
-      return { success: false };
-    }
 
     if (contacts.length === 0) {
       toast({
@@ -228,9 +176,6 @@ export const useSmsNotification = () => {
     try {
       const { data, error } = await supabase.functions.invoke("send-sms", {
         body: {
-          accountSid: settings.twilioAccountSid,
-          authToken: settings.twilioAuthToken,
-          twilioPhoneNumber: settings.twilioPhoneNumber,
           contacts,
           userName: getUserName(),
           emergencyType: "test",
@@ -242,7 +187,7 @@ export const useSmsNotification = () => {
       if (error) {
         toast({
           title: "Test failed",
-          description: "Check your Twilio credentials",
+          description: "Could not send test SMS",
           variant: "destructive",
         });
         return { success: false };
@@ -257,7 +202,7 @@ export const useSmsNotification = () => {
       } else {
         toast({
           title: "Test failed",
-          description: data?.error || "Check credentials",
+          description: data?.error || "Could not send",
           variant: "destructive",
         });
         return { success: false };
