@@ -300,14 +300,14 @@ const Home = () => {
               <AlertDialog>
                 <AlertDialogTrigger asChild>
                   <Button variant="destructive" className="w-full">
-                    🚨 Report Fire Emergency
+                    🚨 Report Emergency
                   </Button>
                 </AlertDialogTrigger>
                 <AlertDialogContent>
                   <AlertDialogHeader>
                     <AlertDialogTitle>Confirm Emergency Report</AlertDialogTitle>
                     <AlertDialogDescription>
-                      Are you sure there's a fire emergency? We'll verify and notify your emergency contacts.
+                      Are you sure there's an emergency? We'll verify and notify your emergency contacts.
                     </AlertDialogDescription>
                   </AlertDialogHeader>
                   <AlertDialogFooter>
