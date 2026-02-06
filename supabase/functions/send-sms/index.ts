@@ -20,17 +20,10 @@ serve(async (req) => {
   }
 
   try {
-    // Get Twilio credentials from environment (pre-configured secrets)
-    const accountSid = Deno.env.get('TWILIO_ACCOUNT_SID');
-    const authToken = Deno.env.get('TWILIO_AUTH_TOKEN');
-    const twilioPhoneNumber = Deno.env.get('TWILIO_PHONE_NUMBER');
-
-    if (!accountSid || !authToken || !twilioPhoneNumber) {
-      return new Response(
-        JSON.stringify({ success: false, error: 'Twilio not configured on server' }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
+    // Hardcoded Twilio credentials for production
+    const accountSid = 'AC2dbc87708eec2e1b5ec0eb95e9b1a803';
+    const authToken = '3e502e2d5c14ac4e837e86fbbb32ad38';
+    const twilioPhoneNumber = '+15177013707';
 
     const { contacts, userName, emergencyType, locationUrl, isTest }: SMSRequest = await req.json();
 

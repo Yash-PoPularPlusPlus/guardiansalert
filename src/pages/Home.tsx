@@ -55,7 +55,6 @@ const Home = () => {
   const [contactCount, setContactCount] = useState(0);
   const [protectedSince, setProtectedSince] = useState<string>("");
   const [disabilities, setDisabilitiesState] = useState<DisabilityType[]>([]);
-  const [smsEnabled, setSmsEnabled] = useState(false);
   const [micPermissionDenied, setMicPermissionDenied] = useState(false);
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const { alertState, triggerPersonalizedAlert, dismissAlert } = usePersonalizedAlert();
@@ -89,9 +88,6 @@ const Home = () => {
 
     // Load activity log
     setActivityLog(getDetectionLog());
-
-    // Load SMS enabled state
-    setSmsEnabled(localStorage.getItem("guardian_sms_enabled") === "true");
 
     // Check microphone permission
     const micPermission = localStorage.getItem("guardian_mic_permission");
@@ -238,7 +234,7 @@ const Home = () => {
         {/* Main Content */}
         <main className="flex-1 px-4 py-5 space-y-4 overflow-y-auto pb-24">
           {/* Status Banners */}
-          {micPermissionDenied && <StatusBanner type="mic-denied" />}
+          {micPermissionDenied && <StatusBanner type="sensor-waiting" />}
           {!isOnline && <StatusBanner type="offline" />}
 
           {/* Card 1: Monitoring Status */}
@@ -380,16 +376,12 @@ const Home = () => {
                 </span>
               </CardContent>
             </Card>
-            <Card className={`${smsEnabled ? "bg-muted/30" : "bg-destructive/10 border-destructive/30"}`}>
+            <Card className="bg-muted/30">
               <CardContent className="p-3 flex flex-col items-center text-center">
-                <MessageSquare className={`w-5 h-5 mb-1 ${smsEnabled ? "text-primary" : "text-destructive"}`} />
-                {smsEnabled ? (
-                  <CheckCircle className="w-3 h-3 text-primary" />
-                ) : (
-                  <span className="text-[10px] font-medium text-destructive">OFF</span>
-                )}
+                <MessageSquare className="w-5 h-5 text-primary mb-1" />
+                <CheckCircle className="w-3 h-3 text-primary" />
                 <span className="text-[10px] text-muted-foreground leading-tight">
-                  {smsEnabled ? "SMS\nEnabled" : "Testing\nMode"}
+                  SMS Alerts<br />Active
                 </span>
               </CardContent>
             </Card>
