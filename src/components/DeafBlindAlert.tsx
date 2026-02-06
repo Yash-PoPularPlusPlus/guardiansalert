@@ -88,7 +88,7 @@ const DeafBlindAlert = ({ emergencyType, onDismiss }: DeafBlindAlertProps) => {
         </p>
       </div>
 
-      <div className="w-full px-6 pb-safe mb-16 flex justify-center">
+      <div className="w-full px-6 pb-safe mb-24 flex justify-center">
         <Button
           onClick={handleDismiss}
           className="w-full max-w-sm mx-auto bg-white text-black hover:bg-gray-100 font-bold text-xl rounded-xl min-h-[64px]"
