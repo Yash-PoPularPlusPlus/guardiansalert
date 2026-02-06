@@ -108,9 +108,20 @@ const Home = () => {
     // Load activity log
     setActivityLog(getDetectionLog());
 
+    // Check notification permission
+    if ("Notification" in window) {
+      setNotificationPermission(Notification.permission);
+    } else {
+      setNotificationPermission("unsupported");
+    }
+
     // Update "last checked" every second
     checkIntervalRef.current = window.setInterval(() => {
       setLastChecked("Just now");
+      // Also refresh notification permission status
+      if ("Notification" in window) {
+        setNotificationPermission(Notification.permission);
+      }
     }, 1000);
 
     return () => {
