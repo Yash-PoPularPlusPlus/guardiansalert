@@ -30,15 +30,9 @@ import {
   Shield,
   Lock,
   ChevronRight,
-  Smartphone,
-  Monitor,
-  CheckCircle,
-  AlertCircle,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { useWakeLock } from "@/hooks/useWakeLock";
-import { useBackgroundNotification } from "@/hooks/useBackgroundNotification";
 
 interface EmergencyContact {
   name: string;
@@ -62,16 +56,6 @@ const Settings = () => {
   const [browserNotifications, setBrowserNotifications] = useState(false);
   const [showHowItWorks, setShowHowItWorks] = useState(false);
   const [showPrivacy, setShowPrivacy] = useState(false);
-  
-  // Background protection hooks
-  const { isSupported: wakeLockSupported, isActive: wakeLockActive } = useWakeLock({ enabled: false });
-  const { 
-    isSupported: notificationSupported, 
-    permission: notificationPermission,
-    isBackgroundEnabled,
-    setBackgroundEnabled,
-    requestPermission 
-  } = useBackgroundNotification();
 
   useEffect(() => {
     // Load disabilities
@@ -257,51 +241,6 @@ const Settings = () => {
                   <p className="text-xs text-muted-foreground">Required for protection</p>
                 </div>
                 <Switch checked={true} disabled className="opacity-50" />
-              </div>
-
-              {/* Background Protection Toggle */}
-              <div className="flex items-center justify-between">
-                <div className="space-y-1">
-                  <div className="flex items-center gap-2">
-                    <Monitor className="w-4 h-4 text-primary" />
-                    <Label className="font-medium">Background Protection</Label>
-                  </div>
-                  <p className="text-xs text-muted-foreground">
-                    {isBackgroundEnabled 
-                      ? "Active - Alerts work when app is minimized"
-                      : "Enable to get alerts when app is in background"
-                    }
-                  </p>
-                  {isBackgroundEnabled && (
-                    <div className="flex items-center gap-1 mt-1">
-                      {wakeLockActive ? (
-                        <Badge variant="outline" className="text-[10px] bg-green-500/10 text-green-600 border-green-500/30">
-                          <CheckCircle className="w-2.5 h-2.5 mr-1" />
-                          Screen Wake Lock Active
-                        </Badge>
-                      ) : wakeLockSupported ? (
-                        <Badge variant="outline" className="text-[10px] bg-amber-500/10 text-amber-600 border-amber-500/30">
-                          <AlertCircle className="w-2.5 h-2.5 mr-1" />
-                          Wake Lock Standby
-                        </Badge>
-                      ) : null}
-                    </div>
-                  )}
-                </div>
-                <Switch 
-                  checked={isBackgroundEnabled} 
-                  onCheckedChange={async (enabled) => {
-                    if (enabled && notificationPermission !== "granted") {
-                      const permission = await requestPermission();
-                      if (permission !== "granted") {
-                        toast.error("Notification permission required for background protection");
-                        return;
-                      }
-                    }
-                    setBackgroundEnabled(enabled);
-                    toast.success(enabled ? "Background protection enabled" : "Background protection disabled");
-                  }}
-                />
               </div>
 
               {/* Detection Sensitivity */}

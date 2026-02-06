@@ -1,6 +1,6 @@
-import { useEffect, useState, useRef, useCallback } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import { Bell, Shield, Mic, CheckCircle, Users, MessageSquare, Clock, AlertTriangle, Monitor } from "lucide-react";
+import { Shield, Mic, CheckCircle, Users, MessageSquare, Clock, AlertTriangle } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -27,10 +27,6 @@ import {
   type DisabilityType,
 } from "@/hooks/usePersonalizedAlert";
 import { useSmsNotification, getEmergencyContacts } from "@/hooks/useSmsNotification";
-import { useWakeLock } from "@/hooks/useWakeLock";
-import { useBackgroundNotification, playWakeUpSound } from "@/hooks/useBackgroundNotification";
-import { useEmergencySiren } from "@/hooks/useEmergencySiren";
-import { useEmergencyTitleBlink } from "@/hooks/useEmergencyTitleBlink";
 import { toast } from "@/hooks/use-toast";
 import { 
   getDetectionLog, 
@@ -56,29 +52,10 @@ const Home = () => {
   const [contactCount, setContactCount] = useState(0);
   const [protectedSince, setProtectedSince] = useState<string>("");
   const [disabilities, setDisabilitiesState] = useState<DisabilityType[]>([]);
-  const [notificationPermission, setNotificationPermission] = useState<string>("checking...");
   const { alertState, triggerPersonalizedAlert, dismissAlert } = usePersonalizedAlert();
   const { notifyEmergencyContacts, resetSmsFlag } = useSmsNotification();
   const audioMonitorRef = useRef<AudioMonitorHandle>(null);
   const checkIntervalRef = useRef<number>(0);
-  
-  // Background protection
-  const isBackgroundEnabled = localStorage.getItem("guardian_background_protection") === "true";
-  const { isActive: wakeLockActive } = useWakeLock({ enabled: isBackgroundEnabled && isComplete });
-  const { sendEmergencyNotification } = useBackgroundNotification({
-    onNotificationClick: () => {
-      // When notification is clicked, show the full alert
-      if (!alertState.isActive) {
-        triggerPersonalizedAlert("fire");
-      }
-    }
-  });
-  
-  // Emergency siren for background alerts
-  const { startSiren, stopSiren } = useEmergencySiren();
-  
-  // Title blinking for tab visibility
-  const { startBlinking, stopBlinking } = useEmergencyTitleBlink();
 
   useEffect(() => {
     const data = localStorage.getItem("guardian_data");
@@ -108,20 +85,9 @@ const Home = () => {
     // Load activity log
     setActivityLog(getDetectionLog());
 
-    // Check notification permission
-    if ("Notification" in window) {
-      setNotificationPermission(Notification.permission);
-    } else {
-      setNotificationPermission("unsupported");
-    }
-
     // Update "last checked" every second
     checkIntervalRef.current = window.setInterval(() => {
       setLastChecked("Just now");
-      // Also refresh notification permission status
-      if ("Notification" in window) {
-        setNotificationPermission(Notification.permission);
-      }
     }, 1000);
 
     return () => {
@@ -131,38 +97,15 @@ const Home = () => {
     };
   }, [navigate]);
 
-  // Automatic fire alarm detection callback with background support
-  const handleAutoDetectedAlert = useCallback((type: EmergencyType) => {
-    console.log("🚨 Fire alarm detected! Triggering all alert mechanisms...");
-    
+  // Automatic fire alarm detection callback
+  const handleAutoDetectedAlert = (type: EmergencyType) => {
     unlockAudioForEmergency();
-    
-    // Always start title blinking (works even in foreground, helps visibility)
-    startBlinking();
-    
-    // ALWAYS try to send notification (the function will check if tab is hidden)
-    // Also serves as a verification that notifications work
-    const isBackground = document.visibilityState === "hidden" || !document.hasFocus();
-    console.log("Is background:", isBackground, "Visibility:", document.visibilityState, "Has focus:", document.hasFocus());
-    
-    // Send high-priority system notification (works in both foreground and background)
-    sendEmergencyNotification(type);
-    
-    // If in background, also play aggressive sounds
-    if (isBackground) {
-      // Play loud wake-up sound even in background
-      playWakeUpSound();
-      
-      // Start the aggressive emergency siren (loops until stopped)
-      startSiren();
-    }
-    
     triggerPersonalizedAlert(type);
     
     const updated = addDetectionEntry(type, "automatic");
     setActivityLog(updated);
     notifyEmergencyContacts(type);
-  }, [sendEmergencyNotification, triggerPersonalizedAlert, notifyEmergencyContacts, startBlinking, startSiren]);
+  };
 
   // Manual emergency report
   const handleManualReport = async () => {
@@ -186,10 +129,6 @@ const Home = () => {
     dismissAlert();
     resetSmsFlag();
     audioMonitorRef.current?.resetCooldown();
-    
-    // Stop all aggressive alert mechanisms
-    stopSiren();
-    stopBlinking();
   };
 
   const renderAlert = () => {
@@ -292,43 +231,6 @@ const Home = () => {
                   <Clock className="w-3.5 h-3.5" />
                   <span>Last checked: {lastChecked}</span>
                 </div>
-                
-                {/* Background Protection Status */}
-                {isBackgroundEnabled && (
-                  <div className="flex items-center gap-2 py-2 px-3 bg-primary/10 rounded-lg">
-                    <Monitor className="w-3.5 h-3.5 text-primary" />
-                    <span className="text-xs text-primary font-medium">
-                      Background Monitoring: {wakeLockActive ? "Active" : "Standby"}
-                    </span>
-                  </div>
-                )}
-                
-                {/* Notification Permission Status - Verification Log */}
-                <div className={`flex items-center gap-2 py-2 px-3 rounded-lg ${
-                  notificationPermission === "granted" 
-                    ? "bg-green-100 dark:bg-green-900/30" 
-                    : notificationPermission === "denied"
-                      ? "bg-destructive/10"
-                      : "bg-yellow-100 dark:bg-yellow-900/30"
-                }`}>
-                  <Bell className={`w-3.5 h-3.5 ${
-                    notificationPermission === "granted" 
-                      ? "text-green-600 dark:text-green-400" 
-                      : notificationPermission === "denied"
-                        ? "text-destructive"
-                        : "text-yellow-600 dark:text-yellow-400"
-                  }`} />
-                  <span className={`text-xs font-medium ${
-                    notificationPermission === "granted" 
-                      ? "text-green-700 dark:text-green-300" 
-                      : notificationPermission === "denied"
-                        ? "text-destructive"
-                        : "text-yellow-700 dark:text-yellow-300"
-                  }`}>
-                    Notification Permission: {notificationPermission === "granted" ? "✅ Granted" : notificationPermission === "denied" ? "❌ Denied" : "⚠️ " + notificationPermission}
-                  </span>
-                </div>
-                
                 <p className="text-xs text-muted-foreground pt-2 border-t border-border w-full">
                   Your accessibility profile: {getDisabilityLabels()}
                 </p>
