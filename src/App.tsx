@@ -7,6 +7,7 @@ import Welcome from "./pages/Welcome";
 import HowItWorks from "./pages/HowItWorks";
 import DisabilitySelection from "./pages/DisabilitySelection";
 import EmergencyContacts from "./pages/EmergencyContacts";
+import PermissionsSetup from "./pages/PermissionsSetup";
 import Home from "./pages/Home";
 import Activity from "./pages/Activity";
 import Settings from "./pages/Settings";
