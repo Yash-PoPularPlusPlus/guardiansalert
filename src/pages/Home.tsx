@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { Shield, Flame, Globe, Waves, Settings, MessageSquare, AlertTriangle, CheckCircle, Users, Clock, Hand } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
@@ -135,50 +135,44 @@ const Home = () => {
     await notifyEmergencyContacts(type);
   };
 
-  // Ref to store the auto-detection handler
-  // This is set via useEffect to always have access to latest state
-  const autoDetectHandlerRef = useRef<((type: EmergencyType) => void) | null>(null);
-
-  // Update the ref whenever dependencies change
-  // This ensures the callback always has access to current state
+  // Store references to the latest functions to avoid stale closures
+  const triggerAlertRef = useRef(triggerPersonalizedAlert);
+  const notifyContactsRef = useRef(notifyEmergencyContacts);
+  
+  // Keep refs updated with the latest functions
   useEffect(() => {
-    autoDetectHandlerRef.current = (type: EmergencyType) => {
-      console.log("[Guardian] ========================================");
-      console.log("[Guardian] AUTO-DETECTION TRIGGERED!");
-      console.log("[Guardian] Emergency type:", type);
-      console.log("[Guardian] ========================================");
-      
-      // Unlock audio for browsers that require user interaction
-      unlockAudioForEmergency();
-      
-      // Trigger the alert - this should show the full screen alert
-      console.log("[Guardian] Calling triggerPersonalizedAlert...");
-      triggerPersonalizedAlert(type);
-      console.log("[Guardian] Alert triggered!");
-      
-      // Log the automatic detection
-      console.log("[Guardian] Adding to activity log...");
-      const updated = addDetectionEntry(type, "automatic");
-      setActivityLog(updated);
-      console.log("[Guardian] Activity log updated");
-      
-      // Send SMS to emergency contacts
-      console.log("[Guardian] Sending SMS notifications...");
-      notifyEmergencyContacts(type);
-      console.log("[Guardian] SMS notifications sent");
-    };
-  }, [triggerPersonalizedAlert, notifyEmergencyContacts]);
+    triggerAlertRef.current = triggerPersonalizedAlert;
+    notifyContactsRef.current = notifyEmergencyContacts;
+  });
 
-  // Stable callback that delegates to the ref
-  // This never changes identity, but always calls the latest handler
-  const handleAutoDetectedAlert = (type: EmergencyType) => {
-    console.log("[Guardian] handleAutoDetectedAlert called with:", type);
-    if (autoDetectHandlerRef.current) {
-      autoDetectHandlerRef.current(type);
-    } else {
-      console.error("[Guardian] autoDetectHandlerRef.current is null!");
-    }
-  };
+  // CRITICAL: This callback is passed to AudioMonitor
+  // It MUST be stable (empty deps) and use refs to access latest functions
+  const handleAutoDetectedAlert = useCallback((type: EmergencyType) => {
+    console.log("[Guardian] ========================================");
+    console.log("[Guardian] AUTO-DETECTION TRIGGERED!");
+    console.log("[Guardian] Emergency type:", type);
+    console.log("[Guardian] triggerAlertRef.current:", typeof triggerAlertRef.current);
+    console.log("[Guardian] ========================================");
+    
+    // Unlock audio for browsers that require user interaction
+    unlockAudioForEmergency();
+    
+    // CRITICAL: Use refs to get the CURRENT functions
+    console.log("[Guardian] Calling triggerPersonalizedAlert via ref...");
+    triggerAlertRef.current(type);
+    console.log("[Guardian] Alert triggered!");
+    
+    // Log the automatic detection
+    console.log("[Guardian] Adding to activity log...");
+    const updated = addDetectionEntry(type, "automatic");
+    setActivityLog(updated);
+    console.log("[Guardian] Activity log updated");
+    
+    // Send SMS to emergency contacts
+    console.log("[Guardian] Sending SMS notifications via ref...");
+    notifyContactsRef.current(type);
+    console.log("[Guardian] SMS notifications initiated");
+  }, []); // Empty deps - refs handle the updates
 
   const getProfileLabel = () => {
     if (currentProfile === "custom") return "Custom";
@@ -287,7 +281,19 @@ const Home = () => {
             </div>
           </div>
 
-          {/* Manual Alert Cards */}
+          {/* Test Auto-Detection Button (for debugging) */}
+          <div className="space-y-2">
+            <p className="text-xs text-muted-foreground">Test automatic detection:</p>
+            <button
+              onClick={() => {
+                console.log("[TEST] Simulating auto-detection...");
+                handleAutoDetectedAlert("fire");
+              }}
+              className="w-full py-3 px-4 bg-amber-500 hover:bg-amber-600 text-white font-medium rounded-xl transition-colors"
+            >
+              🧪 Test Auto-Detection (Fire)
+            </button>
+          </div>
           <div className="space-y-3">
             <div>
               <div className="flex items-center gap-2 mb-1">
