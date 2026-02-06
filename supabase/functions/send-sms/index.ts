@@ -21,9 +21,9 @@ serve(async (req) => {
 
   try {
     // Hardcoded Twilio credentials for production
-    const accountSid = 'AC2dbc87708eec2e1b5ec0eb95e9b1a803';
-    const authToken = '3e502e2d5c14ac4e837e86fbbb32ad38';
-    const twilioPhoneNumber = '+15177013707';
+    const accountSid = 'AC8b07d946464dab4a039b6a4f74d5a007';
+    const authToken = '55a49d79c65c818701e35b839500bf6c';
+    const twilioPhoneNumber = '+13292150255';
 
     const { contacts, userName, emergencyType, locationUrl, isTest }: SMSRequest = await req.json();
 
