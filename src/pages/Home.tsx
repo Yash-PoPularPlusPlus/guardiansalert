@@ -133,16 +133,23 @@ const Home = () => {
 
   // Automatic fire alarm detection callback with background support
   const handleAutoDetectedAlert = useCallback((type: EmergencyType) => {
+    console.log("🚨 Fire alarm detected! Triggering all alert mechanisms...");
+    
     unlockAudioForEmergency();
     
     // Always start title blinking (works even in foreground, helps visibility)
     startBlinking();
     
-    // Check if we're in background - send aggressive alerts
-    if (document.visibilityState === "hidden" || !document.hasFocus()) {
-      // Send high-priority system notification
-      sendEmergencyNotification(type);
-      
+    // ALWAYS try to send notification (the function will check if tab is hidden)
+    // Also serves as a verification that notifications work
+    const isBackground = document.visibilityState === "hidden" || !document.hasFocus();
+    console.log("Is background:", isBackground, "Visibility:", document.visibilityState, "Has focus:", document.hasFocus());
+    
+    // Send high-priority system notification (works in both foreground and background)
+    sendEmergencyNotification(type);
+    
+    // If in background, also play aggressive sounds
+    if (isBackground) {
       // Play loud wake-up sound even in background
       playWakeUpSound();
       
