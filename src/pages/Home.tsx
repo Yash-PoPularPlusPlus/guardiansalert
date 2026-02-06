@@ -123,12 +123,19 @@ const Home = () => {
   const handleAutoDetectedAlert = useCallback((type: EmergencyType) => {
     unlockAudioForEmergency();
     
-    // Check if we're in background - send system notification
+    // Always start title blinking (works even in foreground, helps visibility)
+    startBlinking();
+    
+    // Check if we're in background - send aggressive alerts
     if (document.visibilityState === "hidden" || !document.hasFocus()) {
-      // Send system notification
+      // Send high-priority system notification
       sendEmergencyNotification(type);
+      
       // Play loud wake-up sound even in background
       playWakeUpSound();
+      
+      // Start the aggressive emergency siren (loops until stopped)
+      startSiren();
     }
     
     triggerPersonalizedAlert(type);
@@ -136,7 +143,7 @@ const Home = () => {
     const updated = addDetectionEntry(type, "automatic");
     setActivityLog(updated);
     notifyEmergencyContacts(type);
-  }, [sendEmergencyNotification, triggerPersonalizedAlert, notifyEmergencyContacts]);
+  }, [sendEmergencyNotification, triggerPersonalizedAlert, notifyEmergencyContacts, startBlinking, startSiren]);
 
   // Manual emergency report
   const handleManualReport = async () => {
