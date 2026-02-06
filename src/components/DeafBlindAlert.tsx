@@ -23,19 +23,16 @@ const emergencyConfig = {
   },
 };
 
-// Maximum vibration for deaf+blind users
 const MAXIMUM_VIBRATION = [1000, 100, 1000, 100, 1000, 100, 1000];
 
 const DeafBlindAlert = ({ emergencyType, onDismiss }: DeafBlindAlertProps) => {
   const vibrationIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
-    // Start maximum vibration immediately
     if (navigator.vibrate) {
       navigator.vibrate(MAXIMUM_VIBRATION);
     }
 
-    // Repeat vibration pattern every 1.5 seconds
     vibrationIntervalRef.current = setInterval(() => {
       if (navigator.vibrate) {
         navigator.vibrate(MAXIMUM_VIBRATION);
@@ -64,11 +61,12 @@ const DeafBlindAlert = ({ emergencyType, onDismiss }: DeafBlindAlertProps) => {
 
   const config = emergencyConfig[emergencyType];
 
-  // Simple text alert for caregiver nearby - high contrast, minimal design
   return (
-    <div className="fixed inset-0 z-[9999] flex flex-col items-center justify-center bg-black">
-      <div className="flex flex-col items-center justify-center gap-6 text-center px-8">
-        {/* High contrast text for caregiver */}
+    <div 
+      className="fixed inset-0 z-[9999] flex flex-col items-center justify-center bg-black"
+      style={{ minHeight: "100dvh" }}
+    >
+      <div className="flex flex-col items-center justify-center gap-6 text-center px-8 flex-1">
         <div className="px-6 py-4 bg-yellow-400 rounded-lg">
           <h1 className="font-black text-black text-3xl">
             {config.title}
@@ -90,13 +88,18 @@ const DeafBlindAlert = ({ emergencyType, onDismiss }: DeafBlindAlertProps) => {
         </p>
       </div>
 
-      <Button
-        onClick={handleDismiss}
-        className="mt-12 bg-white text-black hover:bg-gray-100 font-bold text-xl rounded-xl"
-        style={{ padding: "20px 48px" }}
-      >
-        DISMISS
-      </Button>
+      <div className="w-full px-6 pb-safe mb-8">
+        <Button
+          onClick={handleDismiss}
+          className="w-full max-w-sm mx-auto bg-white text-black hover:bg-gray-100 font-bold text-xl rounded-xl min-h-[64px]"
+          style={{ 
+            padding: "20px 48px",
+            boxShadow: "0 4px 20px rgba(255, 255, 255, 0.2)",
+          }}
+        >
+          DISMISS
+        </Button>
+      </div>
     </div>
   );
 };

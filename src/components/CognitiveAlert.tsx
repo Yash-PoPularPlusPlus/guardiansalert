@@ -38,7 +38,7 @@ const CognitiveAlert = ({ emergencyType, onDismiss }: CognitiveAlertProps) => {
     const config = emergencyConfig[emergencyType];
     const utterance = new SpeechSynthesisUtterance(config.simpleText);
     utterance.volume = 1.0;
-    utterance.rate = 0.7; // Calm, slow voice
+    utterance.rate = 0.7;
     utterance.pitch = 0.9;
     utterance.lang = "en-US";
 
@@ -54,19 +54,16 @@ const CognitiveAlert = ({ emergencyType, onDismiss }: CognitiveAlertProps) => {
   useEffect(() => {
     isActiveRef.current = true;
 
-    // Ensure voices are loaded
     if ("speechSynthesis" in window) {
       window.speechSynthesis.getVoices();
     }
 
-    // Initial announcement after a brief pause
     const initialTimeout = setTimeout(() => {
       if (isActiveRef.current) {
         speakSlowly();
       }
     }, 500);
 
-    // Repeat every 8 seconds (slower for cognitive)
     intervalRef.current = setInterval(() => {
       if (isActiveRef.current) {
         speakSlowly();
@@ -99,21 +96,22 @@ const CognitiveAlert = ({ emergencyType, onDismiss }: CognitiveAlertProps) => {
   const config = emergencyConfig[emergencyType];
 
   return (
-    <div className={`fixed inset-0 z-[9999] flex flex-col items-center justify-center ${config.bgColor}`}>
-      <div className="flex flex-col items-center justify-center gap-8 text-center px-8">
-        {/* Single large icon */}
+    <div 
+      className={`fixed inset-0 z-[9999] flex flex-col items-center justify-center ${config.bgColor}`}
+      style={{ minHeight: "100dvh" }}
+    >
+      <div className="flex flex-col items-center justify-center gap-8 text-center px-8 flex-1">
         <span 
           className="leading-none animate-bounce"
-          style={{ fontSize: "120px" }}
+          style={{ fontSize: "clamp(80px, 20vw, 120px)" }}
         >
           {config.icon}
         </span>
         
-        {/* Very simple text */}
         <h1 
           className="font-bold text-white leading-relaxed"
           style={{ 
-            fontSize: "36px",
+            fontSize: "clamp(28px, 8vw, 36px)",
             textShadow: "2px 2px 4px rgba(0, 0, 0, 0.5)",
             maxWidth: "300px",
           }}
@@ -122,13 +120,18 @@ const CognitiveAlert = ({ emergencyType, onDismiss }: CognitiveAlertProps) => {
         </h1>
       </div>
 
-      <Button
-        onClick={handleDismiss}
-        className="mt-16 bg-white text-gray-900 hover:bg-gray-100 font-bold text-xl rounded-2xl"
-        style={{ padding: "24px 64px" }}
-      >
-        I'M SAFE
-      </Button>
+      <div className="w-full px-6 pb-safe mb-8">
+        <Button
+          onClick={handleDismiss}
+          className="w-full max-w-sm mx-auto bg-white text-gray-900 hover:bg-gray-100 font-bold text-xl rounded-2xl min-h-[64px]"
+          style={{ 
+            padding: "24px 64px",
+            boxShadow: "0 4px 20px rgba(0, 0, 0, 0.3)",
+          }}
+        >
+          I'M SAFE
+        </Button>
+      </div>
     </div>
   );
 };

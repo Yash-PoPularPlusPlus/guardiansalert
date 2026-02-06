@@ -84,7 +84,6 @@ export const useSmsNotification = () => {
     const smsEnabled = localStorage.getItem("guardian_sms_enabled") === "true";
     
     if (!smsEnabled) {
-      console.log("SMS disabled - simulating send for testing");
       toast({
         title: "SMS simulated (testing mode) ✓",
         description: "SMS alerts are disabled in settings",

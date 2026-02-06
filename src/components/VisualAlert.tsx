@@ -31,14 +31,12 @@ const VisualAlert = ({ emergencyType, onDismiss, extraMessage }: VisualAlertProp
   const vibrationIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
-    // Initial vibration
     const vibrationPattern = [500, 200, 500, 200, 500];
     
     if (navigator.vibrate) {
       navigator.vibrate(vibrationPattern);
     }
 
-    // Repeat vibration every 2 seconds
     vibrationIntervalRef.current = setInterval(() => {
       if (navigator.vibrate) {
         navigator.vibrate(vibrationPattern);
@@ -50,7 +48,7 @@ const VisualAlert = ({ emergencyType, onDismiss, extraMessage }: VisualAlertProp
         clearInterval(vibrationIntervalRef.current);
       }
       if (navigator.vibrate) {
-        navigator.vibrate(0); // Stop vibration on unmount
+        navigator.vibrate(0);
       }
     };
   }, []);
@@ -68,11 +66,14 @@ const VisualAlert = ({ emergencyType, onDismiss, extraMessage }: VisualAlertProp
   const config = emergencyConfig[emergencyType];
 
   return (
-    <div className="fixed inset-0 z-[9999] flex flex-col items-center justify-center animate-emergency-flash">
-      <div className="flex flex-col items-center justify-center gap-4 text-center px-6">
+    <div 
+      className="fixed inset-0 z-[9999] flex flex-col items-center justify-center animate-emergency-flash"
+      style={{ minHeight: "100dvh" }}
+    >
+      <div className="flex flex-col items-center justify-center gap-4 text-center px-6 flex-1">
         <span 
           className="leading-none"
-          style={{ fontSize: "80px" }}
+          style={{ fontSize: "clamp(60px, 15vw, 80px)" }}
         >
           {config.icon}
         </span>
@@ -80,7 +81,7 @@ const VisualAlert = ({ emergencyType, onDismiss, extraMessage }: VisualAlertProp
         <h1 
           className="font-bold text-white leading-tight"
           style={{ 
-            fontSize: "48px",
+            fontSize: "clamp(32px, 10vw, 48px)",
             textShadow: "2px 2px 4px rgba(0, 0, 0, 0.8)",
           }}
         >
@@ -90,7 +91,7 @@ const VisualAlert = ({ emergencyType, onDismiss, extraMessage }: VisualAlertProp
         <p 
           className="text-white font-semibold"
           style={{ 
-            fontSize: "24px",
+            fontSize: "clamp(18px, 5vw, 24px)",
             textShadow: "1px 1px 3px rgba(0, 0, 0, 0.8)",
           }}
         >
@@ -101,7 +102,7 @@ const VisualAlert = ({ emergencyType, onDismiss, extraMessage }: VisualAlertProp
           <p 
             className="text-white/90 font-medium mt-4"
             style={{ 
-              fontSize: "20px",
+              fontSize: "clamp(16px, 4vw, 20px)",
               textShadow: "1px 1px 3px rgba(0, 0, 0, 0.8)",
             }}
           >
@@ -110,13 +111,19 @@ const VisualAlert = ({ emergencyType, onDismiss, extraMessage }: VisualAlertProp
         )}
       </div>
 
-      <Button
-        onClick={handleDismiss}
-        className="mt-12 bg-white text-gray-900 hover:bg-gray-100 font-bold text-lg rounded-xl"
-        style={{ padding: "16px 48px" }}
-      >
-        I'm Safe
-      </Button>
+      {/* Safe area padding for bottom button */}
+      <div className="w-full px-6 pb-safe mb-8">
+        <Button
+          onClick={handleDismiss}
+          className="w-full max-w-sm mx-auto bg-white text-gray-900 hover:bg-gray-100 font-bold text-lg rounded-xl min-h-[56px]"
+          style={{ 
+            padding: "16px 48px",
+            boxShadow: "0 4px 20px rgba(0, 0, 0, 0.3)",
+          }}
+        >
+          I'm Safe
+        </Button>
+      </div>
     </div>
   );
 };

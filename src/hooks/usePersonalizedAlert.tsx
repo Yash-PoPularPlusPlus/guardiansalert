@@ -149,10 +149,7 @@ export const usePersonalizedAlert = () => {
 
   const triggerPersonalizedAlert = useCallback((emergencyType: EmergencyType) => {
     const disabilities = getDisabilities();
-    console.log("[usePersonalizedAlert] Disabilities from localStorage:", disabilities);
     const config = getAlertConfig(disabilities);
-    console.log("[usePersonalizedAlert] Generated config:", config);
-    console.log("[usePersonalizedAlert] showVisual:", config.showVisual, "showAudio:", config.showAudio);
 
     // Start vibration immediately
     triggerVibration(config.vibrationPattern);
@@ -162,7 +159,6 @@ export const usePersonalizedAlert = () => {
       emergencyType,
       config,
     });
-    console.log("[usePersonalizedAlert] Alert state set to active");
   }, []);
 
   const dismissAlert = useCallback(() => {

@@ -25,10 +25,10 @@ const ALARM_MAX_FREQ = 4000;
 const VOICE_MAX_FREQ = 2500;
 
 // Detection thresholds
-const MIN_AMPLITUDE = 55; // Slightly lower threshold
-const VOICE_RATIO_THRESHOLD = 1.3; // Alarm must be 1.3x louder than voice range
-const REQUIRED_DETECTIONS = 6; // ~600ms of detection
-const MAX_MISSES = 6; // More tolerance for gaps/pauses
+const MIN_AMPLITUDE = 55;
+const VOICE_RATIO_THRESHOLD = 1.3;
+const REQUIRED_DETECTIONS = 6;
+const MAX_MISSES = 6;
 const ANALYSIS_INTERVAL_MS = 100;
 const COOLDOWN_DURATION_MS = 30000;
 
@@ -114,23 +114,10 @@ export const useFireAlarmDetection = ({
 
     const alarmFreq = (alarmPeakBin * sampleRate) / FFT_SIZE;
     
-    // Detection criteria:
-    // 1. Alarm frequency range is loud enough
-    // 2. Alarm range is significantly louder than voice range (filters out speech)
+    // Detection criteria
     const isLoudEnough = alarmPeak >= MIN_AMPLITUDE;
     const dominatesVoice = voicePeak === 0 || alarmPeak >= voicePeak * VOICE_RATIO_THRESHOLD;
     const isValid = isLoudEnough && dominatesVoice;
-
-    // Debug log
-    if (alarmPeak > 40 || voicePeak > 40) {
-      console.log("🎤", {
-        alarm: alarmPeak,
-        voice: voicePeak,
-        ratio: voicePeak > 0 ? (alarmPeak / voicePeak).toFixed(1) : "∞",
-        valid: isValid,
-        count: detectionCountRef.current,
-      });
-    }
 
     if (isValid) {
       missCountRef.current = 0;
@@ -138,7 +125,6 @@ export const useFireAlarmDetection = ({
       if (!wasDetectingRef.current) {
         wasDetectingRef.current = true;
         onDetectionStartRef.current?.();
-        console.log("🔊 Fire alarm pattern detected at", Math.round(alarmFreq), "Hz");
       }
       
       detectionCountRef.current++;
@@ -156,7 +142,6 @@ export const useFireAlarmDetection = ({
         hasTriggeredRef.current = true;
         cooldownEndRef.current = now + COOLDOWN_DURATION_MS;
         
-        console.log("🔥 FIRE ALARM CONFIRMED!", { freq: Math.round(alarmFreq), amplitude: alarmPeak });
         onFireAlarmDetectedRef.current();
         
         setTimeout(() => {
@@ -213,8 +198,6 @@ export const useFireAlarmDetection = ({
       source.connect(analyser);
       sourceRef.current = source;
 
-      console.log("✅ Listening for fire alarms (3000-4000 Hz)");
-
       setState({
         isListening: true,
         error: null,
@@ -227,8 +210,6 @@ export const useFireAlarmDetection = ({
       intervalRef.current = window.setInterval(runAnalysis, ANALYSIS_INTERVAL_MS);
       
     } catch (error: any) {
-      console.error("❌ Microphone error:", error);
-      
       const isPermissionDenied = error.name === "NotAllowedError" || error.name === "PermissionDeniedError";
       const isNotFound = error.name === "NotFoundError";
       

@@ -81,8 +81,21 @@
     @apply border-border;
   }
 
+  html {
+    height: 100%;
+    height: -webkit-fill-available;
+  }
+
   body {
     @apply bg-background text-foreground antialiased;
+    min-height: 100%;
+    min-height: 100dvh;
+    min-height: -webkit-fill-available;
+  }
+
+  #root {
+    min-height: 100%;
+    min-height: 100dvh;
   }
 }
 
@@ -97,6 +110,11 @@
 
   .guardian-subtext {
     @apply text-muted-foreground text-base;
+  }
+
+  /* Safe area for bottom navigation on iOS */
+  .pb-safe {
+    padding-bottom: max(env(safe-area-inset-bottom), 0px);
   }
 }
 
