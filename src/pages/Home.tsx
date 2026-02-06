@@ -1,6 +1,6 @@
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import { Shield, Mic, CheckCircle, Users, MessageSquare, Clock, AlertTriangle } from "lucide-react";
+import { Shield, Mic, CheckCircle, Users, MessageSquare, Clock, AlertTriangle, Monitor } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -27,6 +27,8 @@ import {
   type DisabilityType,
 } from "@/hooks/usePersonalizedAlert";
 import { useSmsNotification, getEmergencyContacts } from "@/hooks/useSmsNotification";
+import { useWakeLock } from "@/hooks/useWakeLock";
+import { useBackgroundNotification, playWakeUpSound } from "@/hooks/useBackgroundNotification";
 import { toast } from "@/hooks/use-toast";
 import { 
   getDetectionLog, 
