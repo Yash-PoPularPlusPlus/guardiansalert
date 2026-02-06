@@ -17,17 +17,38 @@ interface UseFireAlarmDetectionOptions {
   enabled?: boolean;
 }
 
-// Keep callback refs stable to avoid stale closures in requestAnimationFrame loop
+// Fire alarm frequency range (Hz) - high-pitched beeping
+const MIN_FREQUENCY = 2800;
+const MAX_FREQUENCY = 4200;
 
-// Fire alarm frequency range (Hz)
-const MIN_FREQUENCY = 3000;
-const MAX_FREQUENCY = 4000;
-const AMPLITUDE_THRESHOLD = 140; // Out of 255 - slightly lower for faster detection
-const DETECTION_DURATION_MS = 500; // FAST: Only 0.5 seconds to confirm (was 2 seconds)
-const MIN_PEAK_COUNT = 2; // FAST: Only need 2 beeps (was 4)
+// Human voice range to IGNORE (Hz)
+const VOICE_MAX_FREQUENCY = 2500;
+
+// Amplitude thresholds
+const MIN_AMPLITUDE = 120; // Minimum to consider (out of 255)
+const MAX_AMPLITUDE = 220; // Maximum reasonable for fire alarm
+
+// Fire alarm pattern characteristics
+const BEEP_DURATION_MIN = 300; // ms - minimum beep duration
+const BEEP_DURATION_MAX = 800; // ms - maximum beep duration  
+const GAP_DURATION_MIN = 200; // ms - minimum gap between beeps
+const GAP_DURATION_MAX = 800; // ms - maximum gap between beeps
+const REQUIRED_BEEP_COUNT = 3; // Need at least 3 beeps to confirm
+const DETECTION_WINDOW_MS = 4000; // Analyze over 4 seconds
+const FREQUENCY_CONSISTENCY_THRESHOLD = 0.7; // 70% of samples must be in fire alarm range
+
+// Technical constants
 const FFT_SIZE = 2048;
-const SAMPLE_RATE = 44100; // Standard sample rate
+const SAMPLE_RATE = 44100;
+const ANALYSIS_INTERVAL_MS = 50; // Analyze every 50ms
 const COOLDOWN_DURATION_MS = 30000; // 30 second cooldown
+
+interface BeepEvent {
+  startTime: number;
+  endTime: number | null;
+  frequency: number;
+  amplitude: number;
+}
 
 export const useFireAlarmDetection = ({
   onFireAlarmDetected,
@@ -47,33 +68,35 @@ export const useFireAlarmDetection = ({
   const analyserRef = useRef<AnalyserNode | null>(null);
   const sourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
-  const animationFrameRef = useRef<number | null>(null);
-  const detectionStartRef = useRef<number | null>(null);
-  const lastPeakTimeRef = useRef<number | null>(null);
-  const peakCountRef = useRef<number>(0);
+  const analysisIntervalRef = useRef<number | null>(null);
+  
+  // Pattern detection state
+  const beepHistoryRef = useRef<BeepEvent[]>([]);
+  const currentBeepRef = useRef<BeepEvent | null>(null);
+  const frequencySamplesRef = useRef<number[]>([]);
+  const detectionStartTimeRef = useRef<number | null>(null);
   const hasTriggeredRef = useRef<boolean>(false);
   const cooldownRef = useRef<number>(0);
   const wasDetectingRef = useRef<boolean>(false);
-  const cooldownIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const lastAnalysisTimeRef = useRef<number>(0);
   
-  // Store callbacks in refs - update SYNCHRONOUSLY during render (not in useEffect)
-  // This prevents race conditions where detection triggers before useEffect runs
+  // Store callbacks in refs
   const onFireAlarmDetectedRef = useRef(onFireAlarmDetected);
   const onDetectionStartRef = useRef(onDetectionStart);
   
-  // Update refs synchronously on every render - this is intentional and safe
   onFireAlarmDetectedRef.current = onFireAlarmDetected;
   onDetectionStartRef.current = onDetectionStart;
 
-  // Calculate frequency bin index for a given frequency
-  const getFrequencyBinIndex = useCallback((frequency: number, sampleRate: number, fftSize: number) => {
-    return Math.round((frequency * fftSize) / sampleRate);
+  // Calculate frequency bin index
+  const getFrequencyBinIndex = useCallback((frequency: number) => {
+    return Math.round((frequency * FFT_SIZE) / SAMPLE_RATE);
   }, []);
 
-  // Check if dominant frequency is in fire alarm range
-  const isFireAlarmFrequency = useCallback((frequencyData: Uint8Array, sampleRate: number) => {
-    const minBin = getFrequencyBinIndex(MIN_FREQUENCY, sampleRate, FFT_SIZE);
-    const maxBin = getFrequencyBinIndex(MAX_FREQUENCY, sampleRate, FFT_SIZE);
+  // Get dominant frequency and amplitude in a range
+  const getDominantFrequency = useCallback((frequencyData: Uint8Array) => {
+    const minBin = getFrequencyBinIndex(MIN_FREQUENCY);
+    const maxBin = getFrequencyBinIndex(MAX_FREQUENCY);
+    const voiceMaxBin = getFrequencyBinIndex(VOICE_MAX_FREQUENCY);
 
     // Get max amplitude in fire alarm frequency range
     let maxAmplitude = 0;
@@ -85,47 +108,123 @@ export const useFireAlarmDetection = ({
       }
     }
 
-    // Check if amplitude exceeds threshold
-    if (maxAmplitude < AMPLITUDE_THRESHOLD) {
-      return { detected: false, amplitude: maxAmplitude };
-    }
-
-    // Check if this is the dominant frequency (not just background noise)
-    // Compare to average amplitude outside the fire alarm range
-    let outsideSum = 0;
-    let outsideCount = 0;
-    for (let i = 0; i < frequencyData.length; i++) {
-      if (i < minBin || i > maxBin) {
-        outsideSum += frequencyData[i];
-        outsideCount++;
+    // Get max amplitude in voice range (to compare)
+    let voiceMaxAmplitude = 0;
+    for (let i = 0; i <= voiceMaxBin && i < frequencyData.length; i++) {
+      if (frequencyData[i] > voiceMaxAmplitude) {
+        voiceMaxAmplitude = frequencyData[i];
       }
     }
-    const outsideAverage = outsideCount > 0 ? outsideSum / outsideCount : 0;
 
-    // Fire alarm frequency should be significantly louder than background
-    const isSignificantlyLouder = maxAmplitude > outsideAverage * 2;
+    // Calculate frequency from bin
+    const frequency = (maxBinIndex * SAMPLE_RATE) / FFT_SIZE;
 
     return {
-      detected: isSignificantlyLouder,
+      frequency,
       amplitude: maxAmplitude,
-      frequency: (maxBinIndex * sampleRate) / FFT_SIZE,
+      voiceAmplitude: voiceMaxAmplitude,
     };
   }, [getFrequencyBinIndex]);
 
-  // Analyze audio in real-time
-  const analyzeAudio = useCallback(() => {
-    if (!analyserRef.current || !enabled) {
-      return;
+  // Check if this is likely a fire alarm frequency (not voice)
+  const isFireAlarmSignal = useCallback((frequencyData: Uint8Array) => {
+    const { frequency, amplitude, voiceAmplitude } = getDominantFrequency(frequencyData);
+
+    // Check amplitude is in valid range
+    if (amplitude < MIN_AMPLITUDE || amplitude > MAX_AMPLITUDE) {
+      return { isValid: false, frequency: 0, amplitude: 0, reason: "amplitude_out_of_range" };
     }
 
-    const analyser = analyserRef.current;
-    const bufferLength = analyser.frequencyBinCount;
-    const frequencyData = new Uint8Array(bufferLength);
-    analyser.getByteFrequencyData(frequencyData);
+    // Check frequency is in fire alarm range
+    if (frequency < MIN_FREQUENCY || frequency > MAX_FREQUENCY) {
+      return { isValid: false, frequency, amplitude, reason: "frequency_out_of_range" };
+    }
+
+    // CRITICAL: Fire alarm frequency must be DOMINANT over voice frequencies
+    // If voice range is louder or similar, this is probably speech, not an alarm
+    if (voiceAmplitude > amplitude * 0.8) {
+      return { isValid: false, frequency, amplitude, reason: "voice_dominant" };
+    }
+
+    // Check that fire alarm frequency is significantly louder than average background
+    let backgroundSum = 0;
+    let backgroundCount = 0;
+    const minBin = getFrequencyBinIndex(MIN_FREQUENCY);
+    const maxBin = getFrequencyBinIndex(MAX_FREQUENCY);
+    
+    for (let i = 0; i < frequencyData.length; i++) {
+      if (i < minBin - 20 || i > maxBin + 20) { // Exclude fire alarm range + buffer
+        backgroundSum += frequencyData[i];
+        backgroundCount++;
+      }
+    }
+    const backgroundAvg = backgroundCount > 0 ? backgroundSum / backgroundCount : 0;
+
+    // Fire alarm should be at least 3x louder than background
+    if (amplitude < backgroundAvg * 3) {
+      return { isValid: false, frequency, amplitude, reason: "not_prominent" };
+    }
+
+    return { isValid: true, frequency, amplitude, reason: "valid" };
+  }, [getDominantFrequency, getFrequencyBinIndex]);
+
+  // Analyze beeping pattern
+  const analyzePattern = useCallback(() => {
+    const now = Date.now();
+    const beeps = beepHistoryRef.current;
+    
+    // Clean old beeps (older than detection window)
+    beepHistoryRef.current = beeps.filter(b => 
+      now - (b.endTime || b.startTime) < DETECTION_WINDOW_MS
+    );
+
+    // Count completed beeps with valid duration
+    const completedBeeps = beepHistoryRef.current.filter(b => {
+      if (!b.endTime) return false;
+      const duration = b.endTime - b.startTime;
+      return duration >= BEEP_DURATION_MIN && duration <= BEEP_DURATION_MAX;
+    });
+
+    if (completedBeeps.length < REQUIRED_BEEP_COUNT) {
+      return { isPattern: false, beepCount: completedBeeps.length };
+    }
+
+    // Check gaps between beeps are consistent
+    const gaps: number[] = [];
+    for (let i = 1; i < completedBeeps.length; i++) {
+      const gap = completedBeeps[i].startTime - (completedBeeps[i-1].endTime || completedBeeps[i-1].startTime);
+      gaps.push(gap);
+    }
+
+    // Validate gaps are within expected range
+    const validGaps = gaps.filter(g => g >= GAP_DURATION_MIN && g <= GAP_DURATION_MAX);
+    if (validGaps.length < gaps.length * 0.5) { // At least 50% of gaps must be valid
+      return { isPattern: false, beepCount: completedBeeps.length };
+    }
+
+    // Check frequency consistency
+    const frequencies = completedBeeps.map(b => b.frequency);
+    const avgFreq = frequencies.reduce((a, b) => a + b, 0) / frequencies.length;
+    const consistentFreqs = frequencies.filter(f => Math.abs(f - avgFreq) < 300); // Within 300Hz
+    
+    if (consistentFreqs.length < frequencies.length * FREQUENCY_CONSISTENCY_THRESHOLD) {
+      return { isPattern: false, beepCount: completedBeeps.length };
+    }
+
+    return { isPattern: true, beepCount: completedBeeps.length };
+  }, []);
+
+  // Main analysis function - runs every 50ms
+  const analyzeAudio = useCallback(() => {
+    if (!analyserRef.current || !enabled) return;
 
     const now = Date.now();
+    
+    // Throttle analysis
+    if (now - lastAnalysisTimeRef.current < ANALYSIS_INTERVAL_MS) return;
+    lastAnalysisTimeRef.current = now;
 
-    // Cooldown period after triggering (30 seconds)
+    // Handle cooldown
     if (cooldownRef.current > now) {
       const remaining = Math.ceil((cooldownRef.current - now) / 1000);
       setState(prev => ({
@@ -133,10 +232,8 @@ export const useFireAlarmDetection = ({
         detectionStatus: "cooldown",
         cooldownRemaining: remaining,
       }));
-      animationFrameRef.current = requestAnimationFrame(analyzeAudio);
       return;
     } else if (state.detectionStatus === "cooldown") {
-      // Cooldown just ended, reset to idle
       setState(prev => ({
         ...prev,
         detectionStatus: "idle",
@@ -144,85 +241,111 @@ export const useFireAlarmDetection = ({
       }));
     }
 
-    const result = isFireAlarmFrequency(frequencyData, SAMPLE_RATE);
+    const analyser = analyserRef.current;
+    const bufferLength = analyser.frequencyBinCount;
+    const frequencyData = new Uint8Array(bufferLength);
+    analyser.getByteFrequencyData(frequencyData);
 
-    if (result.detected) {
-      // Track beeping pattern
-      if (lastPeakTimeRef.current) {
-        const timeSinceLastPeak = now - lastPeakTimeRef.current;
-        // Check if this matches beeping pattern (250-350ms intervals)
-        if (timeSinceLastPeak >= 200 && timeSinceLastPeak <= 400) {
-          peakCountRef.current++;
-        } else if (timeSinceLastPeak > 500) {
-          // Reset if too much time passed
-          peakCountRef.current = 1;
-          detectionStartRef.current = now;
-        }
-      } else {
-        detectionStartRef.current = now;
-        peakCountRef.current = 1;
-        // Notify when detection starts
+    const result = isFireAlarmSignal(frequencyData);
+
+    if (result.isValid) {
+      // Track frequency samples for consistency check
+      frequencySamplesRef.current.push(result.frequency);
+      if (frequencySamplesRef.current.length > 80) { // Keep last 4 seconds worth
+        frequencySamplesRef.current.shift();
+      }
+
+      // Handle beep start/continuation
+      if (!currentBeepRef.current) {
+        // New beep starting
+        currentBeepRef.current = {
+          startTime: now,
+          endTime: null,
+          frequency: result.frequency,
+          amplitude: result.amplitude,
+        };
+        
         if (!wasDetectingRef.current) {
           wasDetectingRef.current = true;
+          detectionStartTimeRef.current = now;
           onDetectionStartRef.current?.();
         }
+      } else {
+        // Update ongoing beep with average frequency
+        currentBeepRef.current.frequency = (currentBeepRef.current.frequency + result.frequency) / 2;
       }
-      lastPeakTimeRef.current = now;
 
-      // Check if detection criteria met
-      if (detectionStartRef.current) {
-        const detectionDuration = now - detectionStartRef.current;
-        const progress = Math.min(100, (detectionDuration / DETECTION_DURATION_MS) * 100);
+      // Update detection progress
+      if (detectionStartTimeRef.current) {
+        const elapsed = now - detectionStartTimeRef.current;
+        const progress = Math.min(100, (elapsed / DETECTION_WINDOW_MS) * 100);
         
-        // Update detection status
+        const patternResult = analyzePattern();
+        
         setState(prev => ({
           ...prev,
-          detectionStatus: progress >= 100 ? "confirmed" : "detecting",
+          detectionStatus: patternResult.isPattern ? "confirmed" : "detecting",
           detectionProgress: progress,
         }));
 
-        // FAST: Only need 0.5 seconds of detection with 2+ beeps
-        if (detectionDuration >= DETECTION_DURATION_MS && peakCountRef.current >= MIN_PEAK_COUNT) {
+        // TRIGGER: Pattern confirmed with enough beeps
+        if (patternResult.isPattern && patternResult.beepCount >= REQUIRED_BEEP_COUNT) {
           if (!hasTriggeredRef.current) {
             hasTriggeredRef.current = true;
             cooldownRef.current = now + COOLDOWN_DURATION_MS;
+            
+            console.log("🔥 Fire alarm confirmed:", {
+              beepCount: patternResult.beepCount,
+              frequencies: frequencySamplesRef.current.slice(-10),
+            });
+            
             onFireAlarmDetectedRef.current();
             
-            // Reset trigger flag after short delay (keeps cooldown active)
+            // Reset after trigger
             setTimeout(() => {
               hasTriggeredRef.current = false;
-              peakCountRef.current = 0;
-              detectionStartRef.current = null;
-              lastPeakTimeRef.current = null;
+              beepHistoryRef.current = [];
+              currentBeepRef.current = null;
+              frequencySamplesRef.current = [];
+              detectionStartTimeRef.current = null;
               wasDetectingRef.current = false;
             }, 5000);
           }
         }
       }
     } else {
-      // Reset if no detection for a while
-      if (lastPeakTimeRef.current && now - lastPeakTimeRef.current > 1000) {
-        peakCountRef.current = 0;
-        detectionStartRef.current = null;
-        lastPeakTimeRef.current = null;
-        wasDetectingRef.current = false;
-        setState(prev => ({
-          ...prev,
-          detectionStatus: "idle",
-          detectionProgress: 0,
-        }));
+      // Sound ended or not valid fire alarm
+      if (currentBeepRef.current) {
+        // End current beep
+        currentBeepRef.current.endTime = now;
+        beepHistoryRef.current.push(currentBeepRef.current);
+        currentBeepRef.current = null;
+      }
+
+      // Reset if no valid signal for too long
+      const lastBeep = beepHistoryRef.current[beepHistoryRef.current.length - 1];
+      if (!lastBeep || now - (lastBeep.endTime || lastBeep.startTime) > 2000) {
+        if (wasDetectingRef.current) {
+          beepHistoryRef.current = [];
+          frequencySamplesRef.current = [];
+          detectionStartTimeRef.current = null;
+          wasDetectingRef.current = false;
+          
+          setState(prev => ({
+            ...prev,
+            detectionStatus: "idle",
+            detectionProgress: 0,
+          }));
+        }
       }
     }
-
-    animationFrameRef.current = requestAnimationFrame(analyzeAudio);
-  }, [enabled, isFireAlarmFrequency]);
+  }, [enabled, isFireAlarmSignal, analyzePattern, state.detectionStatus]);
 
   // Start listening
   const startListening = useCallback(async () => {
     if (!enabled) return;
 
     try {
-      // Request microphone permission
       const stream = await navigator.mediaDevices.getUserMedia({ 
         audio: {
           echoCancellation: false,
@@ -232,17 +355,14 @@ export const useFireAlarmDetection = ({
       });
       streamRef.current = stream;
 
-      // Create audio context
       const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
       audioContextRef.current = audioContext;
 
-      // Create analyser
       const analyser = audioContext.createAnalyser();
       analyser.fftSize = FFT_SIZE;
-      analyser.smoothingTimeConstant = 0.3;
+      analyser.smoothingTimeConstant = 0.2; // Less smoothing for faster response
       analyserRef.current = analyser;
 
-      // Connect microphone to analyser
       const source = audioContext.createMediaStreamSource(stream);
       source.connect(analyser);
       sourceRef.current = source;
@@ -256,8 +376,8 @@ export const useFireAlarmDetection = ({
         cooldownRemaining: 0,
       });
 
-      // Start analysis loop
-      analyzeAudio();
+      // Use setInterval for consistent timing (more reliable than requestAnimationFrame for audio)
+      analysisIntervalRef.current = window.setInterval(analyzeAudio, ANALYSIS_INTERVAL_MS);
     } catch (error: any) {
       console.error("Microphone access error:", error);
       
@@ -294,9 +414,9 @@ export const useFireAlarmDetection = ({
 
   // Stop listening
   const stopListening = useCallback(() => {
-    if (animationFrameRef.current) {
-      cancelAnimationFrame(animationFrameRef.current);
-      animationFrameRef.current = null;
+    if (analysisIntervalRef.current) {
+      clearInterval(analysisIntervalRef.current);
+      analysisIntervalRef.current = null;
     }
 
     if (sourceRef.current) {
@@ -315,10 +435,12 @@ export const useFireAlarmDetection = ({
     }
 
     analyserRef.current = null;
-    detectionStartRef.current = null;
-    lastPeakTimeRef.current = null;
-    peakCountRef.current = 0;
+    beepHistoryRef.current = [];
+    currentBeepRef.current = null;
+    frequencySamplesRef.current = [];
+    detectionStartTimeRef.current = null;
     hasTriggeredRef.current = false;
+    wasDetectingRef.current = false;
 
     setState(prev => ({
       ...prev,
@@ -326,13 +448,14 @@ export const useFireAlarmDetection = ({
     }));
   }, []);
 
-  // Reset cooldown to resume monitoring immediately
+  // Reset cooldown
   const resetCooldown = useCallback(() => {
     cooldownRef.current = 0;
     hasTriggeredRef.current = false;
-    peakCountRef.current = 0;
-    detectionStartRef.current = null;
-    lastPeakTimeRef.current = null;
+    beepHistoryRef.current = [];
+    currentBeepRef.current = null;
+    frequencySamplesRef.current = [];
+    detectionStartTimeRef.current = null;
     wasDetectingRef.current = false;
     setState(prev => ({
       ...prev,
