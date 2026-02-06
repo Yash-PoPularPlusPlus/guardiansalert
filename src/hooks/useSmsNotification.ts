@@ -80,6 +80,18 @@ export const useSmsNotification = () => {
   }, []);
 
   const notifyEmergencyContacts = useCallback(async (emergencyType: EmergencyType) => {
+    // Check if SMS is enabled (testing mode check)
+    const smsEnabled = localStorage.getItem("guardian_sms_enabled") === "true";
+    
+    if (!smsEnabled) {
+      console.log("SMS disabled - simulating send for testing");
+      toast({
+        title: "SMS simulated (testing mode) ✓",
+        description: "SMS alerts are disabled in settings",
+      });
+      return { success: true, simulated: true };
+    }
+
     // Check if already sent for this alert
     if (smsSentForCurrentAlert) {
       return { success: false, reason: "already_sent" };

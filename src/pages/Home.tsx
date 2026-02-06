@@ -52,6 +52,7 @@ const Home = () => {
   const [contactCount, setContactCount] = useState(0);
   const [protectedSince, setProtectedSince] = useState<string>("");
   const [disabilities, setDisabilitiesState] = useState<DisabilityType[]>([]);
+  const [smsEnabled, setSmsEnabled] = useState(false);
   const { alertState, triggerPersonalizedAlert, dismissAlert } = usePersonalizedAlert();
   const { notifyEmergencyContacts, resetSmsFlag } = useSmsNotification();
   const audioMonitorRef = useRef<AudioMonitorHandle>(null);
@@ -84,6 +85,9 @@ const Home = () => {
 
     // Load activity log
     setActivityLog(getDetectionLog());
+
+    // Load SMS enabled state
+    setSmsEnabled(localStorage.getItem("guardian_sms_enabled") === "true");
 
     // Update "last checked" every second
     checkIntervalRef.current = window.setInterval(() => {
@@ -346,12 +350,16 @@ const Home = () => {
                 </span>
               </CardContent>
             </Card>
-            <Card className="bg-muted/30">
+            <Card className={`${smsEnabled ? "bg-muted/30" : "bg-destructive/10 border-destructive/30"}`}>
               <CardContent className="p-3 flex flex-col items-center text-center">
-                <MessageSquare className="w-5 h-5 text-primary mb-1" />
-                <CheckCircle className="w-3 h-3 text-primary" />
+                <MessageSquare className={`w-5 h-5 mb-1 ${smsEnabled ? "text-primary" : "text-destructive"}`} />
+                {smsEnabled ? (
+                  <CheckCircle className="w-3 h-3 text-primary" />
+                ) : (
+                  <span className="text-[10px] font-medium text-destructive">OFF</span>
+                )}
                 <span className="text-[10px] text-muted-foreground leading-tight">
-                  SMS<br />Enabled
+                  {smsEnabled ? "SMS\nEnabled" : "Testing\nMode"}
                 </span>
               </CardContent>
             </Card>
