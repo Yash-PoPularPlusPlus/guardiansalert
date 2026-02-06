@@ -104,17 +104,40 @@ const Settings = () => {
 
   const handleBrowserNotificationsToggle = async (enabled: boolean) => {
     if (enabled) {
-      if ("Notification" in window) {
+      if (!("Notification" in window)) {
+        toast.error("Browser notifications not supported on this device");
+        return;
+      }
+
+      // Check current permission state first
+      const currentPermission = Notification.permission;
+      
+      if (currentPermission === "denied") {
+        toast.error("Notifications blocked. Click the lock icon in your browser's address bar → Site settings → Allow notifications", {
+          duration: 6000,
+        });
+        return;
+      }
+
+      if (currentPermission === "granted") {
+        setBrowserNotifications(true);
+        localStorage.setItem("guardian_browser_notifications", "true");
+        toast.success("Browser notifications enabled");
+        return;
+      }
+
+      // Permission is "default" - request it
+      try {
         const permission = await Notification.requestPermission();
         if (permission === "granted") {
           setBrowserNotifications(true);
           localStorage.setItem("guardian_browser_notifications", "true");
           toast.success("Browser notifications enabled");
         } else {
-          toast.error("Browser notification permission denied");
+          toast.error("Permission denied. You can enable it later in browser settings");
         }
-      } else {
-        toast.error("Browser notifications not supported");
+      } catch (error) {
+        toast.error("Could not request notification permission");
       }
     } else {
       setBrowserNotifications(false);
