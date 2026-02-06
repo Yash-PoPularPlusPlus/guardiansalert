@@ -38,15 +38,33 @@ const HowItWorks = () => {
     setIsRequestingPermission(true);
     
     try {
-      const permission = await Notification.requestPermission();
-      setNotificationStatus(permission as "default" | "granted" | "denied");
-      
-      if (permission === "granted") {
-        toast.success("Notifications enabled! You'll be alerted even when the app is in the background.");
-        localStorage.setItem("guardian_browser_notifications", "true");
-        localStorage.setItem("guardian_background_protection", "true");
+      // Force permission request if not already granted
+      if (Notification.permission !== 'granted') {
+        const permission = await Notification.requestPermission();
+        setNotificationStatus(permission as "default" | "granted" | "denied");
+        
+        if (permission === "granted") {
+          // Send a test notification to confirm it's working
+          new Notification("✅ Guardian Alert Enabled", { 
+            body: "Notifications enabled! You will be alerted even if this tab is closed.",
+            icon: "/favicon.ico",
+            tag: "setup-confirmation"
+          });
+          
+          toast.success("Notifications enabled! You'll be alerted even when the app is in the background.");
+          localStorage.setItem("guardian_browser_notifications", "true");
+          localStorage.setItem("guardian_background_protection", "true");
+        } else {
+          toast.error("Notifications blocked. You can enable them in browser settings.");
+        }
       } else {
-        toast.error("Notifications blocked. You can enable them in browser settings.");
+        // Already granted
+        new Notification("✅ Guardian Alert Ready", { 
+          body: "Your notification settings are already active!",
+          icon: "/favicon.ico",
+          tag: "setup-confirmation"
+        });
+        toast.success("Notifications already enabled!");
       }
     } catch (error) {
       console.error("Notification permission error:", error);
