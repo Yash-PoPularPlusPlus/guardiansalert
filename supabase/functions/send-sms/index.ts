@@ -2,13 +2,10 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version',
 };
 
 interface SMSRequest {
-  accountSid: string;
-  authToken: string;
-  twilioPhoneNumber: string;
   contacts: { name: string; phone: string }[];
   userName: string;
   emergencyType: string;
@@ -23,24 +20,19 @@ serve(async (req) => {
   }
 
   try {
-    const { 
-      accountSid, 
-      authToken, 
-      twilioPhoneNumber, 
-      contacts, 
-      userName, 
-      emergencyType, 
-      locationUrl,
-      isTest 
-    }: SMSRequest = await req.json();
+    // Get Twilio credentials from environment (pre-configured secrets)
+    const accountSid = Deno.env.get('TWILIO_ACCOUNT_SID');
+    const authToken = Deno.env.get('TWILIO_AUTH_TOKEN');
+    const twilioPhoneNumber = Deno.env.get('TWILIO_PHONE_NUMBER');
 
-    // Validate required fields
     if (!accountSid || !authToken || !twilioPhoneNumber) {
       return new Response(
-        JSON.stringify({ success: false, error: 'Missing Twilio credentials' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        JSON.stringify({ success: false, error: 'Twilio not configured on server' }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
+
+    const { contacts, userName, emergencyType, locationUrl, isTest }: SMSRequest = await req.json();
 
     if (!contacts || contacts.length === 0) {
       return new Response(
@@ -49,10 +41,9 @@ serve(async (req) => {
       );
     }
 
-    const currentTime = new Date().toLocaleString();
     const results: { phone: string; success: boolean; error?: string }[] = [];
 
-    // Send SMS to each contact
+    // Send SMS to each contact (only first contact for test)
     const contactsToNotify = isTest ? [contacts[0]] : contacts;
 
     for (const contact of contactsToNotify) {
