@@ -303,6 +303,32 @@ const Home = () => {
                   </div>
                 )}
                 
+                {/* Notification Permission Status - Verification Log */}
+                <div className={`flex items-center gap-2 py-2 px-3 rounded-lg ${
+                  notificationPermission === "granted" 
+                    ? "bg-green-100 dark:bg-green-900/30" 
+                    : notificationPermission === "denied"
+                      ? "bg-destructive/10"
+                      : "bg-yellow-100 dark:bg-yellow-900/30"
+                }`}>
+                  <Bell className={`w-3.5 h-3.5 ${
+                    notificationPermission === "granted" 
+                      ? "text-green-600 dark:text-green-400" 
+                      : notificationPermission === "denied"
+                        ? "text-destructive"
+                        : "text-yellow-600 dark:text-yellow-400"
+                  }`} />
+                  <span className={`text-xs font-medium ${
+                    notificationPermission === "granted" 
+                      ? "text-green-700 dark:text-green-300" 
+                      : notificationPermission === "denied"
+                        ? "text-destructive"
+                        : "text-yellow-700 dark:text-yellow-300"
+                  }`}>
+                    Notification Permission: {notificationPermission === "granted" ? "✅ Granted" : notificationPermission === "denied" ? "❌ Denied" : "⚠️ " + notificationPermission}
+                  </span>
+                </div>
+                
                 <p className="text-xs text-muted-foreground pt-2 border-t border-border w-full">
                   Your accessibility profile: {getDisabilityLabels()}
                 </p>
