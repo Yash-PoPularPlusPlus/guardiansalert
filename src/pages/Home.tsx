@@ -20,6 +20,9 @@ import AudioAlert, { unlockAudioForEmergency } from "@/components/AudioAlert";
 import CognitiveAlert from "@/components/CognitiveAlert";
 import DeafBlindAlert from "@/components/DeafBlindAlert";
 import AudioMonitor, { type AudioMonitorHandle } from "@/components/AudioMonitor";
+import WaveformVisualizer from "@/components/WaveformVisualizer";
+import StatusBanner from "@/components/StatusBanner";
+import BottomNav from "@/components/BottomNav";
 import {
   usePersonalizedAlert,
   getDisabilities,
@@ -27,7 +30,7 @@ import {
   type DisabilityType,
 } from "@/hooks/usePersonalizedAlert";
 import { useSmsNotification, getEmergencyContacts } from "@/hooks/useSmsNotification";
-import { toast } from "@/hooks/use-toast";
+import { toast } from "sonner";
 import { 
   getDetectionLog, 
   addDetectionEntry, 
@@ -53,6 +56,8 @@ const Home = () => {
   const [protectedSince, setProtectedSince] = useState<string>("");
   const [disabilities, setDisabilitiesState] = useState<DisabilityType[]>([]);
   const [smsEnabled, setSmsEnabled] = useState(false);
+  const [micPermissionDenied, setMicPermissionDenied] = useState(false);
+  const [isOnline, setIsOnline] = useState(navigator.onLine);
   const { alertState, triggerPersonalizedAlert, dismissAlert } = usePersonalizedAlert();
   const { notifyEmergencyContacts, resetSmsFlag } = useSmsNotification();
   const audioMonitorRef = useRef<AudioMonitorHandle>(null);
@@ -68,7 +73,6 @@ const Home = () => {
     const parsed = JSON.parse(data);
     if (parsed.onboardingComplete) {
       setIsComplete(true);
-      // Set protected since date
       if (parsed.completedAt) {
         const date = new Date(parsed.completedAt);
         setProtectedSince(date.toLocaleDateString([], { month: "short", day: "numeric", year: "numeric" }));
@@ -89,15 +93,27 @@ const Home = () => {
     // Load SMS enabled state
     setSmsEnabled(localStorage.getItem("guardian_sms_enabled") === "true");
 
+    // Check microphone permission
+    const micPermission = localStorage.getItem("guardian_mic_permission");
+    setMicPermissionDenied(micPermission === "denied");
+
     // Update "last checked" every second
     checkIntervalRef.current = window.setInterval(() => {
       setLastChecked("Just now");
     }, 1000);
 
+    // Online/offline listeners
+    const handleOnline = () => setIsOnline(true);
+    const handleOffline = () => setIsOnline(false);
+    window.addEventListener("online", handleOnline);
+    window.addEventListener("offline", handleOffline);
+
     return () => {
       if (checkIntervalRef.current) {
         clearInterval(checkIntervalRef.current);
       }
+      window.removeEventListener("online", handleOnline);
+      window.removeEventListener("offline", handleOffline);
     };
   }, [navigate]);
 
@@ -123,9 +139,8 @@ const Home = () => {
     
     await notifyEmergencyContacts("fire");
     
-    toast({
-      title: "Emergency reported",
-      description: "Your emergency contacts have been notified.",
+    toast.success("Emergency contacts notified ✓", {
+      description: "Your report has been verified and sent.",
     });
   };
 
@@ -135,6 +150,7 @@ const Home = () => {
     dismissAlert();
     resetSmsFlag();
     audioMonitorRef.current?.resetCooldown();
+    toast.success("Marked as safe – Monitoring resumed");
   };
 
   const renderAlert = () => {
@@ -212,23 +228,34 @@ const Home = () => {
           <Badge 
             variant="outline" 
             className="bg-primary/10 text-primary border-primary/30 animate-pulse"
+            style={{ animationDuration: "2s" }}
           >
-            <span className="w-2 h-2 rounded-full bg-primary mr-2" />
+            <span className="w-2 h-2 rounded-full bg-primary mr-2 animate-pulse" style={{ animationDuration: "1s" }} />
             Protected
           </Badge>
         </header>
 
         {/* Main Content */}
-        <main className="flex-1 px-4 py-5 space-y-4 overflow-y-auto pb-20">
+        <main className="flex-1 px-4 py-5 space-y-4 overflow-y-auto pb-24">
+          {/* Status Banners */}
+          {micPermissionDenied && <StatusBanner type="mic-denied" />}
+          {!isOnline && <StatusBanner type="offline" />}
+
           {/* Card 1: Monitoring Status */}
           <Card className="border-primary/30 bg-gradient-to-br from-primary/5 to-primary/10">
             <CardContent className="pt-6">
               <div className="flex flex-col items-center text-center space-y-3">
-                <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center animate-pulse">
-                  <Mic className="w-8 h-8 text-primary" />
+                <div className="relative">
+                  <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center">
+                    <Mic className="w-8 h-8 text-primary" />
+                  </div>
+                  {/* Live waveform */}
+                  <div className="absolute -right-2 -bottom-1">
+                    <WaveformVisualizer isActive={!alertState.isActive && !micPermissionDenied} />
+                  </div>
                 </div>
                 <div>
-                  <h2 className="text-xl font-bold text-foreground">Monitoring Active</h2>
+                  <h2 className="text-xl font-bold text-foreground">Monitoring Status: Active</h2>
                   <p className="text-sm text-muted-foreground mt-1">
                     Listening for natural disasters and emergency sounds
                   </p>
@@ -259,8 +286,8 @@ const Home = () => {
                     <CheckCircle className="w-5 h-5 text-primary" />
                   </div>
                   <div>
-                    <p className="text-sm font-medium text-foreground">No emergencies detected</p>
-                    <p className="text-xs text-muted-foreground">You're safe.</p>
+                    <p className="text-sm font-medium text-foreground">Monitoring Status: Secure</p>
+                    <p className="text-xs text-muted-foreground">No emergencies detected</p>
                   </div>
                 </div>
               ) : (
@@ -281,7 +308,7 @@ const Home = () => {
                     </div>
                   ))}
                   <button 
-                    className="text-xs text-primary font-medium hover:underline w-full text-left pt-1"
+                    className="text-xs text-primary font-medium hover:underline w-full text-left pt-1 min-h-[44px] flex items-center"
                     onClick={() => navigate("/activity")}
                   >
                     View all activity →
@@ -305,7 +332,10 @@ const Home = () => {
               </p>
               <AlertDialog>
                 <AlertDialogTrigger asChild>
-                  <Button variant="destructive" className="w-full">
+                  <Button 
+                    variant="destructive" 
+                    className="w-full min-h-[48px] active:scale-[0.98] transition-transform"
+                  >
                     🚨 Report Emergency
                   </Button>
                 </AlertDialogTrigger>
@@ -317,10 +347,10 @@ const Home = () => {
                     </AlertDialogDescription>
                   </AlertDialogHeader>
                   <AlertDialogFooter>
-                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogCancel className="min-h-[48px]">Cancel</AlertDialogCancel>
                     <AlertDialogAction 
                       onClick={handleManualReport}
-                      className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                      className="bg-destructive text-destructive-foreground hover:bg-destructive/90 min-h-[48px]"
                     >
                       Yes, Report
                     </AlertDialogAction>
@@ -367,28 +397,7 @@ const Home = () => {
         </main>
 
         {/* Bottom Navigation */}
-        <nav className="fixed bottom-0 left-0 right-0 bg-card border-t border-border px-6 py-3">
-          <div className="flex justify-around items-center max-w-md mx-auto">
-            <button className="flex flex-col items-center gap-1 text-primary">
-              <Shield className="w-5 h-5" />
-              <span className="text-xs font-medium">Home</span>
-            </button>
-            <button 
-              className="flex flex-col items-center gap-1 text-muted-foreground"
-              onClick={() => navigate("/activity")}
-            >
-              <Clock className="w-5 h-5" />
-              <span className="text-xs">Activity</span>
-            </button>
-            <button 
-              className="flex flex-col items-center gap-1 text-muted-foreground"
-              onClick={() => navigate("/settings")}
-            >
-              <Users className="w-5 h-5" />
-              <span className="text-xs">Settings</span>
-            </button>
-          </div>
-        </nav>
+        <BottomNav />
       </div>
     </>
   );
