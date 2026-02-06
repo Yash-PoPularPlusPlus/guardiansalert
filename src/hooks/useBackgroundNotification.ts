@@ -56,17 +56,24 @@ export const useBackgroundNotification = ({
     }
 
     try {
-      const notification = new Notification(title, {
+      // Extended notification options (renotify is not in standard TS types but supported by browsers)
+      const extendedOptions = {
         ...options,
         requireInteraction: true, // Keep notification until user interacts
-        tag: "guardian-emergency", // Replace previous notifications
-      });
+        tag: "emergency-alert", // Replace previous notifications with same tag
+        renotify: true, // Vibrate device again even if replacing existing notification
+        silent: false, // Allow system notification sound
+      } as NotificationOptions & { renotify?: boolean };
 
-      notification.onclick = () => {
-        // Focus the window when notification is clicked
+      const notification = new Notification(title, extendedOptions);
+
+      notification.onclick = function(event) {
+        // Prevent the browser from focusing the notification's origin
+        event.preventDefault();
+        
+        // Aggressively focus the window using multiple methods
         window.focus();
         
-        // Try to bring the window to front using multiple methods
         if (typeof window.focus === 'function') {
           window.focus();
         }
@@ -74,6 +81,14 @@ export const useBackgroundNotification = ({
         // For some browsers, we need to also try focusing the parent
         if (window.parent && typeof window.parent.focus === 'function') {
           window.parent.focus();
+        }
+        
+        // Try parent.focus() directly
+        try {
+          // @ts-ignore
+          parent.focus();
+        } catch (e) {
+          // Ignore errors
         }
         
         notification.close();
