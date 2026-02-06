@@ -1,45 +1,21 @@
-import { AlertTriangle, Wifi, WifiOff, Mic, MicOff, X } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { AlertTriangle, WifiOff, Radio } from "lucide-react";
 
 interface StatusBannerProps {
-  type: "mic-denied" | "offline";
+  type: "sensor-waiting" | "offline";
   onDismiss?: () => void;
 }
 
-const StatusBanner = ({ type, onDismiss }: StatusBannerProps) => {
-  if (type === "mic-denied") {
+const StatusBanner = ({ type }: StatusBannerProps) => {
+  if (type === "sensor-waiting") {
     return (
-      <div className="bg-destructive/10 border border-destructive/30 rounded-lg p-4 mx-4 mb-4">
-        <div className="flex items-start gap-3">
-          <div className="w-10 h-10 rounded-full bg-destructive/20 flex items-center justify-center shrink-0">
-            <MicOff className="w-5 h-5 text-destructive" />
-          </div>
+      <div className="bg-muted/50 border border-border rounded-lg p-3 mx-4 mb-4">
+        <div className="flex items-center gap-3">
+          <Radio className="w-5 h-5 text-muted-foreground animate-pulse" />
           <div className="flex-1">
-            <h3 className="text-sm font-semibold text-destructive flex items-center gap-2">
-              <AlertTriangle className="w-4 h-4" />
-              Action Required
-            </h3>
-            <p className="text-xs text-muted-foreground mt-1">
-              Microphone access is required for emergency detection. 
-              Click the lock icon in your browser's address bar → Site settings → Allow microphone.
-            </p>
-            <Button 
-              variant="outline" 
-              size="sm" 
-              className="mt-2 h-8 text-xs border-destructive/30 text-destructive hover:bg-destructive/10"
-              onClick={() => window.location.reload()}
-            >
-              Retry Permission
-            </Button>
+            <span className="text-sm font-medium text-muted-foreground">
+              Waiting for sensor data...
+            </span>
           </div>
-          {onDismiss && (
-            <button 
-              onClick={onDismiss}
-              className="text-muted-foreground hover:text-foreground"
-            >
-              <X className="w-4 h-4" />
-            </button>
-          )}
         </div>
       </div>
     );
@@ -47,11 +23,11 @@ const StatusBanner = ({ type, onDismiss }: StatusBannerProps) => {
 
   if (type === "offline") {
     return (
-      <div className="bg-amber-500/10 border border-amber-500/30 rounded-lg p-3 mx-4 mb-4">
+      <div className="bg-destructive/10 border border-destructive/30 rounded-lg p-3 mx-4 mb-4">
         <div className="flex items-center gap-3">
-          <WifiOff className="w-5 h-5 text-amber-500" />
+          <WifiOff className="w-5 h-5 text-destructive" />
           <div className="flex-1">
-            <span className="text-sm font-medium text-amber-600">
+            <span className="text-sm font-medium text-destructive">
               Offline – Protection Limited
             </span>
             <p className="text-xs text-muted-foreground">
