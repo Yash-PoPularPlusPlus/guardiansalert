@@ -43,6 +43,16 @@ const HowItWorks = () => {
   return (
     <div className="guardian-container items-center justify-center text-center px-6">
       <div className="flex flex-col items-center gap-6 max-w-sm w-full">
+        {/* Privacy reassurance - Prominent placement at top */}
+        <div className="flex items-center gap-3 text-sm bg-primary/10 border border-primary/20 rounded-xl px-4 py-3 w-full">
+          <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center flex-shrink-0">
+            <ShieldCheck className="w-4 h-4 text-primary" />
+          </div>
+          <span className="text-left text-foreground/80 leading-snug">
+            <span className="font-semibold text-foreground">100% Private.</span> We only listen for emergencies — no audio is ever recorded or stored.
+          </span>
+        </div>
+
         {/* Pulsing microphone icon */}
         <div className="relative">
           <div className="w-24 h-24 rounded-full bg-primary/10 flex items-center justify-center">
@@ -80,12 +90,6 @@ const HowItWorks = () => {
               </div>
             </Card>
           ))}
-        </div>
-
-        {/* Privacy reassurance */}
-        <div className="flex items-center gap-2 text-xs text-muted-foreground bg-muted/50 rounded-lg px-4 py-3">
-          <ShieldCheck className="w-4 h-4 flex-shrink-0" />
-          <span>Guardian Alert only listens for emergency sounds. We don't record or store any audio.</span>
         </div>
 
         {/* Continue button */}
