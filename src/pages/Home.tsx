@@ -194,33 +194,72 @@ const Home = () => {
 
   // Render the appropriate alert based on config
   const renderAlert = () => {
-    if (!alertState.isActive || !alertState.config || !alertState.emergencyType) return null;
+    console.log("[renderAlert] alertState:", alertState);
+    console.log("[renderAlert] isActive:", alertState.isActive);
+    console.log("[renderAlert] config:", alertState.config);
+    console.log("[renderAlert] emergencyType:", alertState.emergencyType);
+    
+    if (!alertState.isActive || !alertState.config || !alertState.emergencyType) {
+      console.log("[renderAlert] Conditions not met, returning null");
+      return null;
+    }
 
     const { config, emergencyType } = alertState;
+    console.log("[renderAlert] showVisual:", config.showVisual);
+    console.log("[renderAlert] showAudio:", config.showAudio);
+    console.log("[renderAlert] showDeafBlind:", config.showDeafBlind);
+    console.log("[renderAlert] showCognitive:", config.showCognitive);
 
     if (config.showDeafBlind) {
+      console.log("[renderAlert] Rendering DeafBlindAlert");
       return <DeafBlindAlert emergencyType={emergencyType} onDismiss={handleDismissAlert} />;
     }
 
     if (config.showCognitive) {
+      console.log("[renderAlert] Rendering CognitiveAlert");
       return <CognitiveAlert emergencyType={emergencyType} onDismiss={handleDismissAlert} />;
     }
 
+    // For deaf users: showVisual=true, showAudio=false
+    // For blind users: showVisual=false, showAudio=true
+    console.log("[renderAlert] Rendering Visual/Audio alerts");
+    
+    if (config.showVisual && !config.showAudio) {
+      // Deaf user - only visual alert (full screen flashing)
+      console.log("[renderAlert] DEAF USER - Rendering VisualAlert ONLY");
+      return (
+        <VisualAlert 
+          emergencyType={emergencyType} 
+          onDismiss={handleDismissAlert}
+          extraMessage={config.extraMessage}
+        />
+      );
+    }
+    
+    if (config.showAudio && !config.showVisual) {
+      // Blind user - only audio alert
+      console.log("[renderAlert] BLIND USER - Rendering AudioAlert ONLY");
+      return (
+        <AudioAlert 
+          emergencyType={emergencyType} 
+          onDismiss={handleDismissAlert} 
+        />
+      );
+    }
+
+    // Both visual and audio (mobility, nonverbal, default)
+    console.log("[renderAlert] Rendering BOTH Visual and Audio alerts");
     return (
       <>
-        {config.showVisual && (
-          <VisualAlert 
-            emergencyType={emergencyType} 
-            onDismiss={handleDismissAlert}
-            extraMessage={config.extraMessage}
-          />
-        )}
-        {config.showAudio && (
-          <AudioAlert 
-            emergencyType={emergencyType} 
-            onDismiss={handleDismissAlert} 
-          />
-        )}
+        <VisualAlert 
+          emergencyType={emergencyType} 
+          onDismiss={handleDismissAlert}
+          extraMessage={config.extraMessage}
+        />
+        <AudioAlert 
+          emergencyType={emergencyType} 
+          onDismiss={handleDismissAlert} 
+        />
       </>
     );
   };
