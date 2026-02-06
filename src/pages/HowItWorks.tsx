@@ -26,7 +26,7 @@ const HowItWorks = () => {
     {
       icon: "🎤",
       title: "Always Listening",
-      description: "AI continuously monitors for fire alarms and emergency sounds"
+      description: "AI continuously monitors for natural disasters and emergency sounds"
     },
     {
       icon: "⚡",
@@ -58,7 +58,7 @@ const HowItWorks = () => {
             How Guardian Alert Protects You
           </h1>
           <p className="text-muted-foreground leading-relaxed">
-            Guardian Alert monitors for fire alarms 24/7 using AI. No manual activation needed.
+            Guardian Alert monitors for natural disasters 24/7 using AI. No manual activation needed.
           </p>
         </div>
 

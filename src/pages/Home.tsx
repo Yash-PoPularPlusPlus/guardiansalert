@@ -224,7 +224,7 @@ const Home = () => {
                 <div>
                   <h2 className="text-xl font-bold text-foreground">Monitoring Active</h2>
                   <p className="text-sm text-muted-foreground mt-1">
-                    Listening for fire alarms and emergency sounds
+                    Listening for natural disasters and emergency sounds
                   </p>
                 </div>
                 <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
