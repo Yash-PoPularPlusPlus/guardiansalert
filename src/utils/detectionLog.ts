@@ -1,11 +1,15 @@
 export interface DetectionLogEntry {
+  id: number;
   type: "fire" | "earthquake" | "flood";
   timestamp: number;
   source: "automatic" | "manual";
+  description: string;
+  actionTaken: string;
+  status: "resolved" | "pending";
 }
 
 const STORAGE_KEY = "guardian_detection_log";
-const MAX_ENTRIES = 10;
+const MAX_ENTRIES = 50;
 
 export const getDetectionLog = (): DetectionLogEntry[] => {
   try {
@@ -21,13 +25,27 @@ export const getDetectionLog = (): DetectionLogEntry[] => {
 
 export const addDetectionEntry = (
   type: DetectionLogEntry["type"],
-  source: DetectionLogEntry["source"]
+  source: DetectionLogEntry["source"],
+  contactCount: number = 0
 ): DetectionLogEntry[] => {
   const log = getDetectionLog();
+  
+  const description = source === "automatic" 
+    ? `${type === "fire" ? "Fire alarm" : type === "earthquake" ? "Earthquake" : "Flood warning"} detected`
+    : "Manual emergency report";
+  
+  const actionTaken = contactCount > 0 
+    ? `Alert triggered, SMS sent to ${contactCount} contact${contactCount > 1 ? "s" : ""}`
+    : "Alert triggered";
+  
   const newEntry: DetectionLogEntry = {
+    id: Date.now(),
     type,
     timestamp: Date.now(),
     source,
+    description,
+    actionTaken,
+    status: "resolved",
   };
   
   // Add to beginning, keep only MAX_ENTRIES

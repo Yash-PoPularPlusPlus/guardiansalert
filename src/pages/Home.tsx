@@ -102,7 +102,8 @@ const Home = () => {
     unlockAudioForEmergency();
     triggerPersonalizedAlert(type);
     
-    const updated = addDetectionEntry(type, "automatic");
+    const contacts = getEmergencyContacts();
+    const updated = addDetectionEntry(type, "automatic", contacts.length);
     setActivityLog(updated);
     notifyEmergencyContacts(type);
   };
@@ -112,7 +113,8 @@ const Home = () => {
     unlockAudioForEmergency();
     triggerPersonalizedAlert("fire");
     
-    const updated = addDetectionEntry("fire", "manual");
+    const contacts = getEmergencyContacts();
+    const updated = addDetectionEntry("fire", "manual", contacts.length);
     setActivityLog(updated);
     
     await notifyEmergencyContacts("fire");
