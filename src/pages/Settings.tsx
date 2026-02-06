@@ -62,6 +62,16 @@ const Settings = () => {
   const [browserNotifications, setBrowserNotifications] = useState(false);
   const [showHowItWorks, setShowHowItWorks] = useState(false);
   const [showPrivacy, setShowPrivacy] = useState(false);
+  
+  // Background protection hooks
+  const { isSupported: wakeLockSupported, isActive: wakeLockActive } = useWakeLock({ enabled: false });
+  const { 
+    isSupported: notificationSupported, 
+    permission: notificationPermission,
+    isBackgroundEnabled,
+    setBackgroundEnabled,
+    requestPermission 
+  } = useBackgroundNotification();
 
   useEffect(() => {
     // Load disabilities
