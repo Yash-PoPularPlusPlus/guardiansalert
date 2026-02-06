@@ -17,13 +17,14 @@ interface UseFireAlarmDetectionOptions {
   enabled?: boolean;
 }
 
-// Fire alarm frequency range (Hz) - narrowed to actual fire alarm
-const MIN_FREQUENCY = 3600;
-const MAX_FREQUENCY = 3800;
+// Fire alarm frequency range (Hz) - widened for real-world variation
+const MIN_FREQUENCY = 3400;
+const MAX_FREQUENCY = 4000;
 
 // Detection thresholds
-const MIN_AMPLITUDE = 100; // Minimum amplitude (out of 255)
-const REQUIRED_DETECTIONS = 10; // 1 second of consistent detection (10 checks at 100ms)
+const MIN_AMPLITUDE = 80; // Lowered slightly for sensitivity
+const REQUIRED_DETECTIONS = 8; // Need 8 out of 10 checks (~1 second)
+const MAX_MISSES = 3; // Allow up to 3 misses before reset
 const ANALYSIS_INTERVAL_MS = 100; // Analyze every 100ms
 const COOLDOWN_DURATION_MS = 30000; // 30 second cooldown
 
@@ -51,8 +52,9 @@ export const useFireAlarmDetection = ({
   const streamRef = useRef<MediaStream | null>(null);
   const analysisIntervalRef = useRef<number | null>(null);
   
-  // Simple consecutive detection counter
+  // Detection tracking
   const detectionCountRef = useRef<number>(0);
+  const missCountRef = useRef<number>(0);
   const hasTriggeredRef = useRef<boolean>(false);
   const cooldownRef = useRef<number>(0);
   const wasDetectingRef = useRef<boolean>(false);
@@ -63,6 +65,41 @@ export const useFireAlarmDetection = ({
   
   onFireAlarmDetectedRef.current = onFireAlarmDetected;
   onDetectionStartRef.current = onDetectionStart;
+
+  // Find peak frequency in the fire alarm range specifically
+  const findPeakInRange = useCallback((frequencyData: Uint8Array) => {
+    const minBin = Math.floor((MIN_FREQUENCY * FFT_SIZE) / SAMPLE_RATE);
+    const maxBin = Math.ceil((MAX_FREQUENCY * FFT_SIZE) / SAMPLE_RATE);
+    
+    let maxMagnitude = 0;
+    let peakBin = minBin;
+    
+    // Find peak within fire alarm frequency range
+    for (let i = minBin; i <= maxBin && i < frequencyData.length; i++) {
+      if (frequencyData[i] > maxMagnitude) {
+        maxMagnitude = frequencyData[i];
+        peakBin = i;
+      }
+    }
+    
+    const peakFrequency = (peakBin * SAMPLE_RATE) / FFT_SIZE;
+    
+    // Also get overall peak for comparison
+    let overallMax = 0;
+    for (let i = 0; i < frequencyData.length; i++) {
+      if (frequencyData[i] > overallMax) {
+        overallMax = frequencyData[i];
+      }
+    }
+    
+    return {
+      frequency: peakFrequency,
+      magnitude: maxMagnitude,
+      overallMax,
+      // Fire alarm should be dominant in its range
+      isDominant: maxMagnitude >= overallMax * 0.5,
+    };
+  }, []);
 
   // Main analysis function - runs every 100ms
   const analyzeAudio = useCallback(() => {
@@ -93,25 +130,26 @@ export const useFireAlarmDetection = ({
     const frequencyData = new Uint8Array(bufferLength);
     analyser.getByteFrequencyData(frequencyData);
 
-    // Find peak frequency and magnitude
-    let maxMagnitude = 0;
-    let peakBin = 0;
+    const result = findPeakInRange(frequencyData);
     
-    for (let i = 0; i < frequencyData.length; i++) {
-      if (frequencyData[i] > maxMagnitude) {
-        maxMagnitude = frequencyData[i];
-        peakBin = i;
-      }
-    }
-    
-    // Calculate frequency from bin
-    const peakFrequency = (peakBin * SAMPLE_RATE) / FFT_SIZE;
-
     // Check if it matches fire alarm characteristics
-    const isFireAlarmFrequency = peakFrequency >= MIN_FREQUENCY && peakFrequency <= MAX_FREQUENCY;
-    const isLoudEnough = maxMagnitude >= MIN_AMPLITUDE;
+    const isValidDetection = result.magnitude >= MIN_AMPLITUDE && result.isDominant;
 
-    if (isFireAlarmFrequency && isLoudEnough) {
+    // Debug logging (every 10th analysis to reduce spam)
+    if (detectionCountRef.current > 0 || result.magnitude > 50) {
+      console.log("🎤 Audio:", {
+        freq: result.frequency.toFixed(0) + " Hz",
+        mag: result.magnitude,
+        valid: isValidDetection,
+        detections: detectionCountRef.current,
+        misses: missCountRef.current,
+      });
+    }
+
+    if (isValidDetection) {
+      // Reset miss counter on valid detection
+      missCountRef.current = 0;
+      
       // Start detection tracking
       if (!wasDetectingRef.current) {
         wasDetectingRef.current = true;
@@ -129,14 +167,14 @@ export const useFireAlarmDetection = ({
         detectionProgress: progress,
       }));
 
-      // Trigger if we have enough consecutive detections
+      // Trigger if we have enough detections
       if (detectionCountRef.current >= REQUIRED_DETECTIONS && !hasTriggeredRef.current) {
         hasTriggeredRef.current = true;
         cooldownRef.current = now + COOLDOWN_DURATION_MS;
         
-        console.log("🔥 Fire alarm detected:", {
-          frequency: peakFrequency.toFixed(0) + " Hz",
-          amplitude: maxMagnitude,
+        console.log("🔥 Fire alarm CONFIRMED:", {
+          frequency: result.frequency.toFixed(0) + " Hz",
+          amplitude: result.magnitude,
           detections: detectionCountRef.current,
         });
         
@@ -146,13 +184,19 @@ export const useFireAlarmDetection = ({
         setTimeout(() => {
           hasTriggeredRef.current = false;
           detectionCountRef.current = 0;
+          missCountRef.current = 0;
           wasDetectingRef.current = false;
         }, 5000);
       }
-    } else {
-      // Reset if pattern breaks
-      if (detectionCountRef.current > 0) {
+    } else if (wasDetectingRef.current) {
+      // We were detecting but this sample didn't match
+      missCountRef.current++;
+      
+      // Allow some misses before resetting
+      if (missCountRef.current >= MAX_MISSES) {
+        console.log("❌ Detection reset after", missCountRef.current, "misses");
         detectionCountRef.current = 0;
+        missCountRef.current = 0;
         wasDetectingRef.current = false;
         
         setState(prev => ({
@@ -160,9 +204,17 @@ export const useFireAlarmDetection = ({
           detectionStatus: "idle",
           detectionProgress: 0,
         }));
+      } else {
+        // Still in detection mode, just a brief interruption
+        const progress = Math.min(100, (detectionCountRef.current / REQUIRED_DETECTIONS) * 100);
+        setState(prev => ({
+          ...prev,
+          detectionStatus: "detecting",
+          detectionProgress: progress,
+        }));
       }
     }
-  }, [enabled, state.detectionStatus]);
+  }, [enabled, state.detectionStatus, findPeakInRange]);
 
   // Start listening
   const startListening = useCallback(async () => {
@@ -183,7 +235,7 @@ export const useFireAlarmDetection = ({
 
       const analyser = audioContext.createAnalyser();
       analyser.fftSize = FFT_SIZE;
-      analyser.smoothingTimeConstant = 0.3;
+      analyser.smoothingTimeConstant = 0.5; // More smoothing for stability
       analyserRef.current = analyser;
 
       const source = audioContext.createMediaStreamSource(stream);
@@ -259,6 +311,7 @@ export const useFireAlarmDetection = ({
 
     analyserRef.current = null;
     detectionCountRef.current = 0;
+    missCountRef.current = 0;
     hasTriggeredRef.current = false;
     wasDetectingRef.current = false;
 
@@ -273,6 +326,7 @@ export const useFireAlarmDetection = ({
     cooldownRef.current = 0;
     hasTriggeredRef.current = false;
     detectionCountRef.current = 0;
+    missCountRef.current = 0;
     wasDetectingRef.current = false;
     setState(prev => ({
       ...prev,
