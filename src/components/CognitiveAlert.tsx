@@ -120,7 +120,7 @@ const CognitiveAlert = ({ emergencyType, onDismiss }: CognitiveAlertProps) => {
         </h1>
       </div>
 
-      <div className="w-full px-6 pb-safe mb-8">
+      <div className="w-full px-6 pb-safe mb-8 flex justify-center">
         <Button
           onClick={handleDismiss}
           className="w-full max-w-sm mx-auto bg-white text-gray-900 hover:bg-gray-100 font-bold text-xl rounded-2xl min-h-[64px]"
