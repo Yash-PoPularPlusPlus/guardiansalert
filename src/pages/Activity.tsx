@@ -1,14 +1,28 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, Flame, FileText, CheckCircle, Shield } from "lucide-react";
+import { ArrowLeft, Flame, FileText, CheckCircle, Shield, Trash2 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import { toast } from "sonner";
 import { 
   getDetectionLog, 
+  clearDetectionLog,
   type DetectionLogEntry 
 } from "@/utils/detectionLog";
 import { getEmergencyContacts } from "@/hooks/useSmsNotification";
+import BottomNav from "@/components/BottomNav";
 
 type FilterType = "all" | "automatic" | "manual";
 
@@ -80,6 +94,12 @@ const Activity = () => {
     return "Alert triggered";
   };
 
+  const handleClearHistory = () => {
+    clearDetectionLog();
+    setActivityLog([]);
+    toast.success("Activity history cleared");
+  };
+
   // Group entries by date
   const groupedEntries = filteredLog.reduce((groups, entry) => {
     const dateKey = formatDate(entry.timestamp);
@@ -93,16 +113,49 @@ const Activity = () => {
   return (
     <div className="min-h-screen bg-background flex flex-col">
       {/* Header */}
-      <header className="flex items-center gap-3 px-4 py-4 border-b border-border bg-card">
-        <Button 
-          variant="ghost" 
-          size="icon" 
-          onClick={() => navigate("/home")}
-          className="shrink-0"
-        >
-          <ArrowLeft className="w-5 h-5" />
-        </Button>
-        <h1 className="text-lg font-bold text-foreground">Activity History</h1>
+      <header className="flex items-center justify-between gap-3 px-4 py-4 border-b border-border bg-card">
+        <div className="flex items-center gap-3">
+          <Button 
+            variant="ghost" 
+            size="icon" 
+            onClick={() => navigate("/home")}
+            className="shrink-0 min-h-[48px] min-w-[48px]"
+          >
+            <ArrowLeft className="w-5 h-5" />
+          </Button>
+          <h1 className="text-lg font-bold text-foreground">Activity History</h1>
+        </div>
+        
+        {activityLog.length > 0 && (
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button 
+                variant="ghost" 
+                size="icon"
+                className="text-muted-foreground hover:text-destructive min-h-[48px] min-w-[48px]"
+              >
+                <Trash2 className="w-4 h-4" />
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Clear Activity History</AlertDialogTitle>
+                <AlertDialogDescription>
+                  This will permanently delete all activity records. This action cannot be undone.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel className="min-h-[48px]">Cancel</AlertDialogCancel>
+                <AlertDialogAction 
+                  onClick={handleClearHistory}
+                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90 min-h-[48px]"
+                >
+                  Clear History
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        )}
       </header>
 
       {/* Filter Tabs */}
@@ -112,7 +165,7 @@ const Activity = () => {
             variant={filter === "all" ? "default" : "outline"}
             size="sm"
             onClick={() => setFilter("all")}
-            className="flex-1"
+            className="flex-1 min-h-[44px] active:scale-[0.98] transition-transform"
           >
             All
           </Button>
@@ -120,7 +173,7 @@ const Activity = () => {
             variant={filter === "automatic" ? "default" : "outline"}
             size="sm"
             onClick={() => setFilter("automatic")}
-            className="flex-1"
+            className="flex-1 min-h-[44px] active:scale-[0.98] transition-transform"
           >
             🔥 Fire Alarms
           </Button>
@@ -128,7 +181,7 @@ const Activity = () => {
             variant={filter === "manual" ? "default" : "outline"}
             size="sm"
             onClick={() => setFilter("manual")}
-            className="flex-1"
+            className="flex-1 min-h-[44px] active:scale-[0.98] transition-transform"
           >
             📝 Manual
           </Button>
@@ -136,7 +189,7 @@ const Activity = () => {
       </div>
 
       {/* Activity List */}
-      <main className="flex-1 px-4 py-4 overflow-y-auto">
+      <main className="flex-1 px-4 py-4 overflow-y-auto pb-24">
         {filteredLog.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 text-center">
             <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mb-4">
@@ -209,6 +262,9 @@ const Activity = () => {
           </div>
         )}
       </main>
+
+      {/* Bottom Navigation */}
+      <BottomNav />
     </div>
   );
 };

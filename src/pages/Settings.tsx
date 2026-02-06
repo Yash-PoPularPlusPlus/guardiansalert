@@ -19,9 +19,6 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import {
-  Home,
-  History,
-  Settings as SettingsIcon,
   User,
   Phone,
   Mic,
@@ -33,6 +30,7 @@ import {
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
+import BottomNav from "@/components/BottomNav";
 
 interface EmergencyContact {
   name: string;
@@ -99,7 +97,9 @@ const Settings = () => {
   const handleSensitivityChange = (value: string) => {
     setSensitivity(value);
     localStorage.setItem("guardian_sensitivity", value);
-    toast.success(`Detection sensitivity set to ${value}`);
+    toast.success("Profile updated successfully", {
+      description: `Detection sensitivity set to ${value}`,
+    });
   };
 
   const handleBrowserNotificationsToggle = async (enabled: boolean) => {
@@ -149,7 +149,9 @@ const Settings = () => {
   const handleSmsToggle = (enabled: boolean) => {
     setSmsEnabled(enabled);
     localStorage.setItem("guardian_sms_enabled", enabled ? "true" : "false");
-    toast.success(enabled ? "SMS alerts enabled - real SMS will be sent" : "SMS alerts disabled - testing mode active");
+    toast.success("Profile updated successfully", {
+      description: enabled ? "SMS alerts enabled – real SMS will be sent" : "SMS alerts disabled – testing mode active",
+    });
   };
 
   const handleEditProfile = () => {
@@ -216,7 +218,7 @@ const Settings = () => {
                   <span className="text-muted-foreground text-sm">No profile selected</span>
                 )}
               </div>
-              <Button variant="outline" size="sm" onClick={handleEditProfile} className="w-full">
+              <Button variant="outline" size="sm" onClick={handleEditProfile} className="w-full min-h-[44px] active:scale-[0.98] transition-transform">
                 Edit Profile
                 <ChevronRight className="w-4 h-4 ml-auto" />
               </Button>
@@ -249,7 +251,7 @@ const Settings = () => {
               ) : (
                 <span className="text-muted-foreground text-sm">No contacts added</span>
               )}
-              <Button variant="outline" size="sm" onClick={handleEditContacts} className="w-full">
+              <Button variant="outline" size="sm" onClick={handleEditContacts} className="w-full min-h-[44px] active:scale-[0.98] transition-transform">
                 Edit Contacts
                 <ChevronRight className="w-4 h-4 ml-auto" />
               </Button>
@@ -388,31 +390,7 @@ const Settings = () => {
       </div>
 
       {/* Bottom Navigation */}
-      <nav className="fixed bottom-0 left-0 right-0 bg-card border-t border-border">
-        <div className="flex items-center justify-around py-2">
-          <button
-            onClick={() => navigate("/home")}
-            className="flex flex-col items-center gap-1 px-4 py-2 text-muted-foreground hover:text-foreground transition-colors"
-          >
-            <Home className="w-5 h-5" />
-            <span className="text-xs">Home</span>
-          </button>
-          <button
-            onClick={() => navigate("/activity")}
-            className="flex flex-col items-center gap-1 px-4 py-2 text-muted-foreground hover:text-foreground transition-colors"
-          >
-            <History className="w-5 h-5" />
-            <span className="text-xs">Activity</span>
-          </button>
-          <button
-            onClick={() => navigate("/settings")}
-            className="flex flex-col items-center gap-1 px-4 py-2 text-primary transition-colors"
-          >
-            <SettingsIcon className="w-5 h-5" />
-            <span className="text-xs font-medium">Settings</span>
-          </button>
-        </div>
-      </nav>
+      <BottomNav />
 
       {/* How It Works Dialog */}
       <Dialog open={showHowItWorks} onOpenChange={setShowHowItWorks}>
