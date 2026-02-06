@@ -1,10 +1,13 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { Mic, Check, ShieldCheck } from "lucide-react";
+import { Mic, Check, ShieldCheck, Bell, CheckCircle, XCircle } from "lucide-react";
+import { toast } from "sonner";
 
 const HowItWorks = () => {
   const navigate = useNavigate();
+  const [notificationStatus, setNotificationStatus] = useState<"default" | "granted" | "denied">("default");
+  const [isRequestingPermission, setIsRequestingPermission] = useState(false);
 
   // Redirect to home if user has already completed onboarding
   useEffect(() => {
@@ -19,7 +22,39 @@ const HowItWorks = () => {
         // Invalid data, let user continue onboarding
       }
     }
+
+    // Check current notification permission
+    if ("Notification" in window) {
+      setNotificationStatus(Notification.permission as "default" | "granted" | "denied");
+    }
   }, [navigate]);
+
+  const handleRequestNotifications = async () => {
+    if (!("Notification" in window)) {
+      toast.error("Your browser doesn't support notifications");
+      return;
+    }
+
+    setIsRequestingPermission(true);
+    
+    try {
+      const permission = await Notification.requestPermission();
+      setNotificationStatus(permission as "default" | "granted" | "denied");
+      
+      if (permission === "granted") {
+        toast.success("Notifications enabled! You'll be alerted even when the app is in the background.");
+        localStorage.setItem("guardian_browser_notifications", "true");
+        localStorage.setItem("guardian_background_protection", "true");
+      } else {
+        toast.error("Notifications blocked. You can enable them in browser settings.");
+      }
+    } catch (error) {
+      console.error("Notification permission error:", error);
+      toast.error("Failed to request notification permission");
+    } finally {
+      setIsRequestingPermission(false);
+    }
+  };
 
   const features = [
     { text: "Always listening - no need to activate" },
@@ -29,7 +64,7 @@ const HowItWorks = () => {
 
   return (
     <div className="guardian-container items-center justify-center text-center px-6">
-      <div className="flex flex-col items-center gap-8 max-w-sm">
+      <div className="flex flex-col items-center gap-6 max-w-sm">
         {/* Pulsing microphone icon */}
         <div className="relative">
           <div className="w-24 h-24 rounded-full bg-primary/10 flex items-center justify-center">
@@ -70,6 +105,50 @@ const HowItWorks = () => {
           ))}
         </div>
 
+        {/* Notification Permission Request */}
+        <div className="w-full bg-card rounded-xl p-4 border border-border space-y-3">
+          <div className="flex items-center gap-3">
+            <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
+              notificationStatus === "granted" 
+                ? "bg-green-100 dark:bg-green-900/30" 
+                : notificationStatus === "denied"
+                  ? "bg-destructive/10"
+                  : "bg-primary/10"
+            }`}>
+              {notificationStatus === "granted" ? (
+                <CheckCircle className="w-5 h-5 text-green-600 dark:text-green-400" />
+              ) : notificationStatus === "denied" ? (
+                <XCircle className="w-5 h-5 text-destructive" />
+              ) : (
+                <Bell className="w-5 h-5 text-primary" />
+              )}
+            </div>
+            <div className="flex-1 text-left">
+              <p className="font-medium text-foreground text-sm">System Notifications</p>
+              <p className="text-xs text-muted-foreground">
+                {notificationStatus === "granted" 
+                  ? "Enabled ✓ - You'll be alerted even in background"
+                  : notificationStatus === "denied"
+                    ? "Blocked - Enable in browser settings"
+                    : "Get alerts when app is in background"
+                }
+              </p>
+            </div>
+          </div>
+          {notificationStatus === "default" && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="w-full"
+              onClick={handleRequestNotifications}
+              disabled={isRequestingPermission}
+            >
+              <Bell className="w-4 h-4 mr-2" />
+              {isRequestingPermission ? "Requesting..." : "Enable Notifications"}
+            </Button>
+          )}
+        </div>
+
         {/* Privacy reassurance */}
         <div className="flex items-center gap-2 text-xs text-muted-foreground bg-muted/50 rounded-lg px-4 py-3">
           <ShieldCheck className="w-4 h-4 flex-shrink-0" />
@@ -80,7 +159,7 @@ const HowItWorks = () => {
         <Button 
           variant="guardian" 
           size="xl" 
-          className="w-full mt-4"
+          className="w-full mt-2"
           onClick={() => navigate("/onboarding/disability")}
         >
           I Understand →

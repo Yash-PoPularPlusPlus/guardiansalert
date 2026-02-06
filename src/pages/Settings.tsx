@@ -30,9 +30,15 @@ import {
   Shield,
   Lock,
   ChevronRight,
+  Smartphone,
+  Monitor,
+  CheckCircle,
+  AlertCircle,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
+import { useWakeLock } from "@/hooks/useWakeLock";
+import { useBackgroundNotification } from "@/hooks/useBackgroundNotification";
 
 interface EmergencyContact {
   name: string;
