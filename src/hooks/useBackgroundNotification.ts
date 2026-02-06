@@ -102,22 +102,69 @@ export const useBackgroundNotification = ({
     }
   }, []);
 
-  const sendEmergencyNotification = useCallback((emergencyType: string) => {
-    // Only send if tab is hidden or not focused
-    if (document.visibilityState !== "hidden" && document.hasFocus()) {
+  const sendEmergencyNotification = useCallback((emergencyType: string): Notification | null => {
+    console.log("sendEmergencyNotification called, permission:", Notification.permission);
+    
+    // ROBUST: Direct notification creation for maximum reliability
+    if (!("Notification" in window)) {
+      console.log("Notifications not supported in this browser");
       return null;
     }
-    
-    return sendBackgroundNotification(
-      "🚨 FIRE ALARM DETECTED!",
-      {
-        body: `Emergency detected. Click to open Guardian Alert immediately.`,
+
+    if (Notification.permission !== "granted") {
+      console.log("Notification permission not granted:", Notification.permission);
+      // FALLBACK: Use browser alert() as last resort
+      alert("🚨 FIRE ALARM DETECTED! 🚨\n\nIMMEDIATE ACTION REQUIRED:\nA fire alarm has been detected.\n\nPlease evacuate immediately!");
+      return null;
+    }
+
+    try {
+      // Extended notification options for maximum attention
+      const notificationOptions = {
+        body: "IMMEDIATE ACTION REQUIRED: A fire alarm has been detected in your area. Click to open Guardian Alert.",
         icon: "/favicon.ico",
         badge: "/favicon.ico",
-        silent: false,
-      }
-    );
-  }, [sendBackgroundNotification]);
+        tag: "emergency-alert",
+        requireInteraction: true, // Forces notification to stay until clicked
+        silent: false, // Uses system alert sound
+        vibrate: [200, 100, 200, 100, 200, 100, 200], // Vibration pattern
+        renotify: true, // Re-notify even if replacing same tag
+      } as NotificationOptions & { renotify?: boolean; vibrate?: number[] };
+
+      const emergencyNotify = new Notification("🚨 FIRE ALARM DETECTED!", notificationOptions);
+
+      emergencyNotify.onclick = function(event) {
+        event.preventDefault();
+        
+        // Aggressively focus the window
+        window.focus();
+        
+        try {
+          window.parent.focus();
+        } catch (e) {
+          // Ignore
+        }
+        
+        try {
+          // @ts-ignore
+          parent.focus();
+        } catch (e) {
+          // Ignore
+        }
+        
+        emergencyNotify.close();
+        onNotificationClickRef.current?.();
+      };
+
+      console.log("Emergency notification sent successfully");
+      return emergencyNotify;
+    } catch (error) {
+      console.error("Failed to send emergency notification:", error);
+      // FALLBACK: Use browser alert() as last resort
+      alert("🚨 FIRE ALARM DETECTED! 🚨\n\nIMMEDIATE ACTION REQUIRED:\nA fire alarm has been detected.\n\nPlease evacuate immediately!");
+      return null;
+    }
+  }, []);
 
   const setBackgroundEnabled = useCallback((enabled: boolean) => {
     localStorage.setItem("guardian_background_protection", enabled ? "true" : "false");
