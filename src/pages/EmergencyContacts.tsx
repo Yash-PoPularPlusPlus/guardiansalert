@@ -93,7 +93,7 @@ const EmergencyContacts = () => {
     };
     
     localStorage.setItem("guardian_data", JSON.stringify(data));
-    navigate("/home");
+    navigate("/onboarding/permissions");
   };
 
   return (

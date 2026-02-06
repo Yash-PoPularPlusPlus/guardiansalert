@@ -7,6 +7,7 @@ import Welcome from "./pages/Welcome";
 import HowItWorks from "./pages/HowItWorks";
 import DisabilitySelection from "./pages/DisabilitySelection";
 import EmergencyContacts from "./pages/EmergencyContacts";
+import PermissionsSetup from "./pages/PermissionsSetup";
 import Home from "./pages/Home";
 import Activity from "./pages/Activity";
 import Settings from "./pages/Settings";
@@ -25,6 +26,7 @@ const App = () => (
           <Route path="/onboarding/how-it-works" element={<HowItWorks />} />
           <Route path="/onboarding/disability" element={<DisabilitySelection />} />
           <Route path="/onboarding/contacts" element={<EmergencyContacts />} />
+          <Route path="/onboarding/permissions" element={<PermissionsSetup />} />
           <Route path="/home" element={<Home />} />
           <Route path="/activity" element={<Activity />} />
           <Route path="/settings" element={<Settings />} />
