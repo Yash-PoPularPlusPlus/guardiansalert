@@ -29,6 +29,8 @@ import {
 import { useSmsNotification, getEmergencyContacts } from "@/hooks/useSmsNotification";
 import { useWakeLock } from "@/hooks/useWakeLock";
 import { useBackgroundNotification, playWakeUpSound } from "@/hooks/useBackgroundNotification";
+import { useEmergencySiren } from "@/hooks/useEmergencySiren";
+import { useEmergencyTitleBlink } from "@/hooks/useEmergencyTitleBlink";
 import { toast } from "@/hooks/use-toast";
 import { 
   getDetectionLog, 
