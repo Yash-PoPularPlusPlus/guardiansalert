@@ -15,7 +15,7 @@ import AudioAlert, { unlockAudioForEmergency } from "@/components/AudioAlert";
 import CognitiveAlert from "@/components/CognitiveAlert";
 import DeafBlindAlert from "@/components/DeafBlindAlert";
 import TwilioSettingsModal from "@/components/TwilioSettingsModal";
-import AudioMonitor from "@/components/AudioMonitor";
+import AudioMonitor, { type AudioMonitorHandle } from "@/components/AudioMonitor";
 import {
   usePersonalizedAlert,
   getDisabilities,
@@ -77,6 +77,7 @@ const Home = () => {
   const [activityLog, setActivityLog] = useState<DetectionLogEntry[]>([]);
   const { alertState, triggerPersonalizedAlert, dismissAlert } = usePersonalizedAlert();
   const { notifyEmergencyContacts, isSending, resetSmsFlag } = useSmsNotification();
+  const audioMonitorRef = useRef<AudioMonitorHandle>(null);
 
   useEffect(() => {
     const data = localStorage.getItem("guardian_data");
@@ -183,8 +184,12 @@ const Home = () => {
   if (!isComplete) return null;
 
   const handleDismissAlert = () => {
+    console.log("[Guardian] Dismissing alert and resetting detection...");
     dismissAlert();
     resetSmsFlag();
+    // CRITICAL: Reset the cooldown so detection can work immediately again
+    audioMonitorRef.current?.resetCooldown();
+    console.log("[Guardian] Ready for next detection!");
   };
 
   // Render the appropriate alert based on config
@@ -225,6 +230,7 @@ const Home = () => {
       {renderAlert()}
       <TwilioSettingsModal open={showSettings} onOpenChange={setShowSettings} />
       <AudioMonitor 
+        ref={audioMonitorRef}
         enabled={isComplete && !alertState.isActive} 
         onAlertTriggered={handleAutoDetectedAlert}
       />
