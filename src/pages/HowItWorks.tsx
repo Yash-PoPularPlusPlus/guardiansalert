@@ -1,7 +1,8 @@
 import { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { Mic, Check, ShieldCheck } from "lucide-react";
+import { Card } from "@/components/ui/card";
+import { ShieldCheck } from "lucide-react";
 
 const HowItWorks = () => {
   const navigate = useNavigate();
@@ -22,14 +23,26 @@ const HowItWorks = () => {
   }, [navigate]);
 
   const features = [
-    { text: "Always listening - no need to activate" },
-    { text: "Instant personalized alerts" },
-    { text: "Automatic family notification" },
+    {
+      icon: "🎤",
+      title: "Always Listening",
+      description: "AI continuously monitors for fire alarms and emergency sounds"
+    },
+    {
+      icon: "⚡",
+      title: "Instant Alerts",
+      description: "Personalized alerts in visual, audio, or haptic format based on your needs"
+    },
+    {
+      icon: "📱",
+      title: "Auto Notification",
+      description: "Emergency contacts get your location automatically via SMS"
+    }
   ];
 
   return (
     <div className="guardian-container items-center justify-center text-center px-6">
-      <div className="flex flex-col items-center gap-8 max-w-sm">
+      <div className="flex flex-col items-center gap-6 max-w-sm w-full">
         {/* Pulsing microphone icon */}
         <div className="relative">
           <div className="w-24 h-24 rounded-full bg-primary/10 flex items-center justify-center">
@@ -44,29 +57,28 @@ const HowItWorks = () => {
           <h1 className="text-2xl font-bold tracking-tight text-foreground">
             How Guardian Alert Protects You
           </h1>
-          <p className="text-lg font-medium text-primary">
-            Guardian Alert listens for danger 24/7
+          <p className="text-muted-foreground leading-relaxed">
+            Guardian Alert monitors for fire alarms 24/7 using AI. No manual activation needed.
           </p>
         </div>
 
-        {/* Explanation text */}
-        <p className="text-muted-foreground leading-relaxed">
-          Using AI, we continuously monitor for fire alarms and emergency sounds. 
-          When detected, you'll get an instant alert in the format that works best for you.
-        </p>
-
-        {/* Feature bullets */}
+        {/* Feature cards */}
         <div className="w-full space-y-3">
           {features.map((feature, index) => (
-            <div 
+            <Card 
               key={index}
-              className="flex items-center gap-3 bg-card rounded-xl p-4 border border-border"
+              className="p-4 border border-border bg-card hover:shadow-md transition-shadow"
             >
-              <div className="w-6 h-6 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center flex-shrink-0">
-                <Check className="w-4 h-4 text-green-600 dark:text-green-400" />
+              <div className="flex items-start gap-4">
+                <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center flex-shrink-0">
+                  <span className="text-2xl">{feature.icon}</span>
+                </div>
+                <div className="text-left">
+                  <h3 className="font-semibold text-foreground">{feature.title}</h3>
+                  <p className="text-sm text-muted-foreground mt-1">{feature.description}</p>
+                </div>
               </div>
-              <span className="text-foreground text-left">{feature.text}</span>
-            </div>
+            </Card>
           ))}
         </div>
 
@@ -80,7 +92,7 @@ const HowItWorks = () => {
         <Button 
           variant="guardian" 
           size="xl" 
-          className="w-full mt-4"
+          className="w-full mt-2"
           onClick={() => navigate("/onboarding/disability")}
         >
           I Understand →
