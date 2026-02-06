@@ -1,4 +1,4 @@
-import { useEffect, useCallback, useState } from "react";
+import { useEffect, useCallback, useState, forwardRef, useImperativeHandle } from "react";
 import { Mic, MicOff, AlertCircle, Flame, Shield, Clock, RotateCcw } from "lucide-react";
 import { useFireAlarmDetection } from "@/hooks/useFireAlarmDetection";
 import { unlockAudioForEmergency } from "@/components/AudioAlert";
@@ -9,7 +9,11 @@ interface AudioMonitorProps {
   onAlertTriggered: (type: "fire") => void;
 }
 
-const AudioMonitor = ({ enabled, onAlertTriggered }: AudioMonitorProps) => {
+export interface AudioMonitorHandle {
+  resetCooldown: () => void;
+}
+
+const AudioMonitor = forwardRef<AudioMonitorHandle, AudioMonitorProps>(({ enabled, onAlertTriggered }, ref) => {
   const [showDetectionAlert, setShowDetectionAlert] = useState(false);
 
   const handleFireAlarmDetected = useCallback(() => {
@@ -58,6 +62,14 @@ const AudioMonitor = ({ enabled, onAlertTriggered }: AudioMonitorProps) => {
     onFireAlarmDetected: handleFireAlarmDetected,
     enabled,
   });
+
+  // Expose resetCooldown to parent via ref
+  useImperativeHandle(ref, () => ({
+    resetCooldown: () => {
+      console.log("[AudioMonitor] Resetting cooldown via ref...");
+      resetCooldown();
+    }
+  }), [resetCooldown]);
 
   // Show error toast if permission denied
   useEffect(() => {
@@ -188,6 +200,8 @@ const AudioMonitor = ({ enabled, onAlertTriggered }: AudioMonitorProps) => {
       </div>
     </div>
   );
-};
+});
+
+AudioMonitor.displayName = "AudioMonitor";
 
 export default AudioMonitor;
