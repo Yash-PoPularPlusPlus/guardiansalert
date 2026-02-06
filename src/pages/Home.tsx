@@ -254,6 +254,17 @@ const Home = () => {
                   <Clock className="w-3.5 h-3.5" />
                   <span>Last checked: {lastChecked}</span>
                 </div>
+                
+                {/* Background Protection Status */}
+                {isBackgroundEnabled && (
+                  <div className="flex items-center gap-2 py-2 px-3 bg-primary/10 rounded-lg">
+                    <Monitor className="w-3.5 h-3.5 text-primary" />
+                    <span className="text-xs text-primary font-medium">
+                      Background Monitoring: {wakeLockActive ? "Active" : "Standby"}
+                    </span>
+                  </div>
+                )}
+                
                 <p className="text-xs text-muted-foreground pt-2 border-t border-border w-full">
                   Your accessibility profile: {getDisabilityLabels()}
                 </p>

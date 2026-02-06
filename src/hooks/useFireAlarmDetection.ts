@@ -235,6 +235,14 @@ export const useFireAlarmDetection = ({
       // Create audio context
       const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
       audioContextRef.current = audioContext;
+      
+      // Handle AudioContext suspension (browser may suspend due to inactivity)
+      audioContext.onstatechange = () => {
+        if (audioContext.state === "suspended" && enabled) {
+          console.log("AudioContext suspended, attempting to resume...");
+          audioContext.resume();
+        }
+      };
 
       // Create analyser
       const analyser = audioContext.createAnalyser();
