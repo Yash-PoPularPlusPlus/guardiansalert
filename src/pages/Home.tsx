@@ -56,6 +56,7 @@ const Home = () => {
   const [contactCount, setContactCount] = useState(0);
   const [protectedSince, setProtectedSince] = useState<string>("");
   const [disabilities, setDisabilitiesState] = useState<DisabilityType[]>([]);
+  const [notificationPermission, setNotificationPermission] = useState<string>("checking...");
   const { alertState, triggerPersonalizedAlert, dismissAlert } = usePersonalizedAlert();
   const { notifyEmergencyContacts, resetSmsFlag } = useSmsNotification();
   const audioMonitorRef = useRef<AudioMonitorHandle>(null);
