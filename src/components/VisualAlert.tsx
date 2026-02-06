@@ -112,7 +112,7 @@ const VisualAlert = ({ emergencyType, onDismiss, extraMessage }: VisualAlertProp
       </div>
 
       {/* Safe area padding for bottom button */}
-      <div className="w-full px-6 pb-safe mb-16 flex justify-center">
+      <div className="w-full px-6 pb-safe mb-24 flex justify-center">
         <Button
           onClick={handleDismiss}
           className="w-full max-w-sm mx-auto bg-white text-gray-900 hover:bg-gray-100 font-bold text-lg rounded-xl min-h-[56px]"
