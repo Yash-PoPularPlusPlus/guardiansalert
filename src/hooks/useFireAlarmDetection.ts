@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback, useEffect } from "react";
+import { useState, useRef, useCallback, useEffect, useMemo } from "react";
 
 export type DetectionStatus = "idle" | "detecting" | "confirmed" | "cooldown";
 
