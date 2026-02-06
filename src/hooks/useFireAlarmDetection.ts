@@ -25,10 +25,10 @@ const ALARM_MAX_FREQ = 4000;
 const VOICE_MAX_FREQ = 2500;
 
 // Detection thresholds
-const MIN_AMPLITUDE = 60; // Moderate threshold
-const VOICE_RATIO_THRESHOLD = 1.5; // Alarm must be 1.5x louder than voice range
-const REQUIRED_DETECTIONS = 8; // ~800ms of detection
-const MAX_MISSES = 4; // Tolerance for gaps
+const MIN_AMPLITUDE = 55; // Slightly lower threshold
+const VOICE_RATIO_THRESHOLD = 1.3; // Alarm must be 1.3x louder than voice range
+const REQUIRED_DETECTIONS = 6; // ~600ms of detection
+const MAX_MISSES = 6; // More tolerance for gaps/pauses
 const ANALYSIS_INTERVAL_MS = 100;
 const COOLDOWN_DURATION_MS = 30000;
 
