@@ -72,6 +72,12 @@ const Home = () => {
       }
     }
   });
+  
+  // Emergency siren for background alerts
+  const { startSiren, stopSiren } = useEmergencySiren();
+  
+  // Title blinking for tab visibility
+  const { startBlinking, stopBlinking } = useEmergencyTitleBlink();
 
   useEffect(() => {
     const data = localStorage.getItem("guardian_data");
