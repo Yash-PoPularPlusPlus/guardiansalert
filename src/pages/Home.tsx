@@ -58,6 +58,18 @@ const Home = () => {
   const { notifyEmergencyContacts, resetSmsFlag } = useSmsNotification();
   const audioMonitorRef = useRef<AudioMonitorHandle>(null);
   const checkIntervalRef = useRef<number>(0);
+  
+  // Background protection
+  const isBackgroundEnabled = localStorage.getItem("guardian_background_protection") === "true";
+  const { isActive: wakeLockActive } = useWakeLock({ enabled: isBackgroundEnabled && isComplete });
+  const { sendEmergencyNotification } = useBackgroundNotification({
+    onNotificationClick: () => {
+      // When notification is clicked, show the full alert
+      if (!alertState.isActive) {
+        triggerPersonalizedAlert("fire");
+      }
+    }
+  });
 
   useEffect(() => {
     const data = localStorage.getItem("guardian_data");
@@ -99,15 +111,24 @@ const Home = () => {
     };
   }, [navigate]);
 
-  // Automatic fire alarm detection callback
-  const handleAutoDetectedAlert = (type: EmergencyType) => {
+  // Automatic fire alarm detection callback with background support
+  const handleAutoDetectedAlert = useCallback((type: EmergencyType) => {
     unlockAudioForEmergency();
+    
+    // Check if we're in background - send system notification
+    if (document.visibilityState === "hidden" || !document.hasFocus()) {
+      // Send system notification
+      sendEmergencyNotification(type);
+      // Play loud wake-up sound even in background
+      playWakeUpSound();
+    }
+    
     triggerPersonalizedAlert(type);
     
     const updated = addDetectionEntry(type, "automatic");
     setActivityLog(updated);
     notifyEmergencyContacts(type);
-  };
+  }, [sendEmergencyNotification, triggerPersonalizedAlert, notifyEmergencyContacts]);
 
   // Manual emergency report
   const handleManualReport = async () => {
