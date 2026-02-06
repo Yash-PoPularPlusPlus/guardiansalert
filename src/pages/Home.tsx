@@ -1,6 +1,6 @@
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import { Shield, Mic, CheckCircle, Users, MessageSquare, Clock, AlertTriangle } from "lucide-react";
+import { Shield, Mic, CheckCircle, Users, MessageSquare, Clock, AlertTriangle, Monitor } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -27,6 +27,8 @@ import {
   type DisabilityType,
 } from "@/hooks/usePersonalizedAlert";
 import { useSmsNotification, getEmergencyContacts } from "@/hooks/useSmsNotification";
+import { useWakeLock } from "@/hooks/useWakeLock";
+import { useBackgroundNotification, playWakeUpSound } from "@/hooks/useBackgroundNotification";
 import { toast } from "@/hooks/use-toast";
 import { 
   getDetectionLog, 
@@ -56,6 +58,18 @@ const Home = () => {
   const { notifyEmergencyContacts, resetSmsFlag } = useSmsNotification();
   const audioMonitorRef = useRef<AudioMonitorHandle>(null);
   const checkIntervalRef = useRef<number>(0);
+  
+  // Background protection
+  const isBackgroundEnabled = localStorage.getItem("guardian_background_protection") === "true";
+  const { isActive: wakeLockActive } = useWakeLock({ enabled: isBackgroundEnabled && isComplete });
+  const { sendEmergencyNotification } = useBackgroundNotification({
+    onNotificationClick: () => {
+      // When notification is clicked, show the full alert
+      if (!alertState.isActive) {
+        triggerPersonalizedAlert("fire");
+      }
+    }
+  });
 
   useEffect(() => {
     const data = localStorage.getItem("guardian_data");
@@ -97,15 +111,24 @@ const Home = () => {
     };
   }, [navigate]);
 
-  // Automatic fire alarm detection callback
-  const handleAutoDetectedAlert = (type: EmergencyType) => {
+  // Automatic fire alarm detection callback with background support
+  const handleAutoDetectedAlert = useCallback((type: EmergencyType) => {
     unlockAudioForEmergency();
+    
+    // Check if we're in background - send system notification
+    if (document.visibilityState === "hidden" || !document.hasFocus()) {
+      // Send system notification
+      sendEmergencyNotification(type);
+      // Play loud wake-up sound even in background
+      playWakeUpSound();
+    }
+    
     triggerPersonalizedAlert(type);
     
     const updated = addDetectionEntry(type, "automatic");
     setActivityLog(updated);
     notifyEmergencyContacts(type);
-  };
+  }, [sendEmergencyNotification, triggerPersonalizedAlert, notifyEmergencyContacts]);
 
   // Manual emergency report
   const handleManualReport = async () => {
@@ -231,6 +254,17 @@ const Home = () => {
                   <Clock className="w-3.5 h-3.5" />
                   <span>Last checked: {lastChecked}</span>
                 </div>
+                
+                {/* Background Protection Status */}
+                {isBackgroundEnabled && (
+                  <div className="flex items-center gap-2 py-2 px-3 bg-primary/10 rounded-lg">
+                    <Monitor className="w-3.5 h-3.5 text-primary" />
+                    <span className="text-xs text-primary font-medium">
+                      Background Monitoring: {wakeLockActive ? "Active" : "Standby"}
+                    </span>
+                  </div>
+                )}
+                
                 <p className="text-xs text-muted-foreground pt-2 border-t border-border w-full">
                   Your accessibility profile: {getDisabilityLabels()}
                 </p>

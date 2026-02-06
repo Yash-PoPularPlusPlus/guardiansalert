@@ -235,6 +235,14 @@ export const useFireAlarmDetection = ({
       // Create audio context
       const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
       audioContextRef.current = audioContext;
+      
+      // Handle AudioContext suspension (browser may suspend due to inactivity)
+      audioContext.onstatechange = () => {
+        if (audioContext.state === "suspended" && enabled) {
+          console.log("AudioContext suspended, attempting to resume...");
+          audioContext.resume();
+        }
+      };
 
       // Create analyser
       const analyser = audioContext.createAnalyser();
@@ -340,6 +348,26 @@ export const useFireAlarmDetection = ({
       detectionProgress: 0,
       cooldownRemaining: 0,
     }));
+  }, []);
+
+  // Handle visibility change - resume AudioContext when tab becomes visible
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible" && audioContextRef.current) {
+        // Resume AudioContext if it was suspended
+        if (audioContextRef.current.state === "suspended") {
+          console.log("Tab visible, resuming AudioContext...");
+          audioContextRef.current.resume().then(() => {
+            console.log("AudioContext resumed successfully");
+          });
+        }
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
   }, []);
 
   // Auto-start when enabled changes
