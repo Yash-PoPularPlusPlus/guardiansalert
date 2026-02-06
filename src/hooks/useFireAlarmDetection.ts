@@ -350,6 +350,26 @@ export const useFireAlarmDetection = ({
     }));
   }, []);
 
+  // Handle visibility change - resume AudioContext when tab becomes visible
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible" && audioContextRef.current) {
+        // Resume AudioContext if it was suspended
+        if (audioContextRef.current.state === "suspended") {
+          console.log("Tab visible, resuming AudioContext...");
+          audioContextRef.current.resume().then(() => {
+            console.log("AudioContext resumed successfully");
+          });
+        }
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, []);
+
   // Auto-start when enabled changes
   useEffect(() => {
     if (enabled) {
