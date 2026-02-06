@@ -1,6 +1,6 @@
 import { useEffect, useState, forwardRef, useImperativeHandle, useRef, useCallback } from "react";
-import { Mic, MicOff, AlertCircle, Flame, Shield, Clock, RotateCcw } from "lucide-react";
-import { useFireAlarmDetection } from "@/hooks/useFireAlarmDetection";
+import { Mic, MicOff, AlertCircle, Flame, Shield, Clock, RotateCcw, Cpu } from "lucide-react";
+import { useFireAlarmDetection, type AudioEngineStatus } from "@/hooks/useFireAlarmDetection";
 import { unlockAudioForEmergency } from "@/components/AudioAlert";
 import { toast } from "@/hooks/use-toast";
 
@@ -11,19 +11,18 @@ interface AudioMonitorProps {
 
 export interface AudioMonitorHandle {
   resetCooldown: () => void;
+  getAudioEngineStatus: () => AudioEngineStatus;
 }
 
 const AudioMonitor = forwardRef<AudioMonitorHandle, AudioMonitorProps>(({ enabled, onAlertTriggered }, ref) => {
   const [showDetectionAlert, setShowDetectionAlert] = useState(false);
   
-  // Store callback in ref - update SYNCHRONOUSLY during render (not in useEffect)
-  // This prevents race conditions where detection triggers before useEffect runs
+  // Store callback in ref - update SYNCHRONOUSLY during render
   const onAlertTriggeredRef = useRef(onAlertTriggered);
-  onAlertTriggeredRef.current = onAlertTriggered; // Always current
+  onAlertTriggeredRef.current = onAlertTriggered;
 
   // INSTANT callback - no delays, no toasts, just trigger immediately
   const handleFireAlarmDetected = useCallback(() => {
-    // CRITICAL: Trigger alert IMMEDIATELY - no logging, no delays
     unlockAudioForEmergency();
     onAlertTriggeredRef.current("fire");
     setShowDetectionAlert(true);
@@ -37,16 +36,18 @@ const AudioMonitor = forwardRef<AudioMonitorHandle, AudioMonitorProps>(({ enable
     detectionStatus, 
     detectionProgress,
     cooldownRemaining,
+    audioEngineStatus,
     resetCooldown
   } = useFireAlarmDetection({
     onFireAlarmDetected: handleFireAlarmDetected,
     enabled,
   });
 
-  // Expose resetCooldown to parent via ref
+  // Expose resetCooldown and audioEngineStatus to parent via ref
   useImperativeHandle(ref, () => ({
-    resetCooldown
-  }), [resetCooldown]);
+    resetCooldown,
+    getAudioEngineStatus: () => audioEngineStatus,
+  }), [resetCooldown, audioEngineStatus]);
 
   // Show error toast if permission denied
   useEffect(() => {
@@ -77,6 +78,15 @@ const AudioMonitor = forwardRef<AudioMonitorHandle, AudioMonitorProps>(({ enable
       title: "Monitoring resumed",
       description: "Fire alarm detection is now active again.",
     });
+  };
+
+  // Engine status indicator color
+  const getEngineStatusColor = () => {
+    switch (audioEngineStatus) {
+      case "running": return "text-green-400";
+      case "suspended": return "text-yellow-400";
+      default: return "text-red-400";
+    }
   };
 
   return (
@@ -167,11 +177,16 @@ const AudioMonitor = forwardRef<AudioMonitorHandle, AudioMonitorProps>(({ enable
           </div>
         )}
 
-        {/* Active status */}
-        {isListening && !error && !isDetecting && !isCooldown && (
-          <div className="flex items-center gap-1.5 text-white/50 text-[10px]">
-            <span className="w-1.5 h-1.5 bg-green-400 rounded-full" />
-            <span>Active now</span>
+        {/* Audio Engine Status - Debug info */}
+        {isListening && !error && (
+          <div className="flex items-center justify-between gap-2 text-[10px] pt-1 border-t border-white/10 mt-1">
+            <div className="flex items-center gap-1 text-white/50">
+              <Cpu className="w-3 h-3" />
+              <span>Audio Engine:</span>
+            </div>
+            <span className={`font-medium capitalize ${getEngineStatusColor()}`}>
+              {audioEngineStatus}
+            </span>
           </div>
         )}
       </div>
