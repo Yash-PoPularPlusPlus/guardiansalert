@@ -9,6 +9,7 @@ import DisabilitySelection from "./pages/DisabilitySelection";
 import EmergencyContacts from "./pages/EmergencyContacts";
 import Home from "./pages/Home";
 import Activity from "./pages/Activity";
+import Settings from "./pages/Settings";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -26,6 +27,7 @@ const App = () => (
           <Route path="/onboarding/contacts" element={<EmergencyContacts />} />
           <Route path="/home" element={<Home />} />
           <Route path="/activity" element={<Activity />} />
+          <Route path="/settings" element={<Settings />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>
