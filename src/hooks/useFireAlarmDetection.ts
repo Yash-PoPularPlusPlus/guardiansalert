@@ -56,15 +56,14 @@ export const useFireAlarmDetection = ({
   const wasDetectingRef = useRef<boolean>(false);
   const cooldownIntervalRef = useRef<NodeJS.Timeout | null>(null);
   
-  // Store callbacks in refs to avoid stale closures in requestAnimationFrame loop
+  // Store callbacks in refs - update SYNCHRONOUSLY during render (not in useEffect)
+  // This prevents race conditions where detection triggers before useEffect runs
   const onFireAlarmDetectedRef = useRef(onFireAlarmDetected);
   const onDetectionStartRef = useRef(onDetectionStart);
   
-  // Keep refs updated
-  useEffect(() => {
-    onFireAlarmDetectedRef.current = onFireAlarmDetected;
-    onDetectionStartRef.current = onDetectionStart;
-  }, [onFireAlarmDetected, onDetectionStart]);
+  // Update refs synchronously on every render - this is intentional and safe
+  onFireAlarmDetectedRef.current = onFireAlarmDetected;
+  onDetectionStartRef.current = onDetectionStart;
 
   // Calculate frequency bin index for a given frequency
   const getFrequencyBinIndex = useCallback((frequency: number, sampleRate: number, fftSize: number) => {
