@@ -80,8 +80,6 @@ export const useBackgroundNotification = ({
     if (document.visibilityState !== "hidden" && document.hasFocus()) {
       return null;
     }
-
-    const typeLabel = emergencyType.charAt(0).toUpperCase() + emergencyType.slice(1);
     
     return sendBackgroundNotification(
       "🚨 FIRE ALARM DETECTED!",
@@ -89,7 +87,6 @@ export const useBackgroundNotification = ({
         body: `Emergency detected. Click to open Guardian Alert immediately.`,
         icon: "/favicon.ico",
         badge: "/favicon.ico",
-        vibrate: [200, 100, 200, 100, 200],
         silent: false,
       }
     );
