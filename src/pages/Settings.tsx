@@ -54,6 +54,7 @@ const Settings = () => {
   const [contacts, setContacts] = useState<EmergencyContact[]>([]);
   const [sensitivity, setSensitivity] = useState("medium");
   const [browserNotifications, setBrowserNotifications] = useState(false);
+  const [smsEnabled, setSmsEnabled] = useState(false);
   const [showHowItWorks, setShowHowItWorks] = useState(false);
   const [showPrivacy, setShowPrivacy] = useState(false);
 
@@ -89,6 +90,10 @@ const Settings = () => {
     if (savedBrowserNotif === "true") {
       setBrowserNotifications(true);
     }
+
+    // Load SMS enabled preference (default OFF for testing)
+    const savedSmsEnabled = localStorage.getItem("guardian_sms_enabled");
+    setSmsEnabled(savedSmsEnabled === "true");
   }, []);
 
   const handleSensitivityChange = (value: string) => {
@@ -116,6 +121,12 @@ const Settings = () => {
       localStorage.setItem("guardian_browser_notifications", "false");
       toast.success("Browser notifications disabled");
     }
+  };
+
+  const handleSmsToggle = (enabled: boolean) => {
+    setSmsEnabled(enabled);
+    localStorage.setItem("guardian_sms_enabled", enabled ? "true" : "false");
+    toast.success(enabled ? "SMS alerts enabled - real SMS will be sent" : "SMS alerts disabled - testing mode active");
   };
 
   const handleEditProfile = () => {
@@ -272,16 +283,21 @@ const Settings = () => {
 
           <Card>
             <CardContent className="pt-6 space-y-6">
-              {/* SMS Notifications Toggle */}
+              {/* SMS Alerts Toggle */}
               <div className="flex items-center justify-between">
                 <div className="space-y-1">
                   <div className="flex items-center gap-2">
                     <Phone className="w-4 h-4 text-primary" />
-                    <Label className="font-medium">SMS Notifications</Label>
+                    <Label className="font-medium">Send SMS Alerts</Label>
                   </div>
-                  <p className="text-xs text-muted-foreground">Required for emergency response</p>
+                  <p className="text-xs text-muted-foreground">
+                    Enable to send real SMS to emergency contacts. Disable for testing.
+                  </p>
                 </div>
-                <Switch checked={true} disabled className="opacity-50" />
+                <Switch
+                  checked={smsEnabled}
+                  onCheckedChange={handleSmsToggle}
+                />
               </div>
 
               {/* Browser Notifications Toggle */}
