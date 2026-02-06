@@ -100,7 +100,7 @@ const CognitiveAlert = ({ emergencyType, onDismiss }: CognitiveAlertProps) => {
       className={`fixed inset-0 z-[9999] flex flex-col items-center justify-center ${config.bgColor}`}
       style={{ minHeight: "100dvh" }}
     >
-      <div className="flex flex-col items-center justify-center gap-8 text-center px-8 flex-1">
+      <div className="flex flex-col items-center justify-center gap-8 text-center px-8">
         <span 
           className="leading-none animate-bounce"
           style={{ fontSize: "clamp(80px, 20vw, 120px)" }}
@@ -118,12 +118,10 @@ const CognitiveAlert = ({ emergencyType, onDismiss }: CognitiveAlertProps) => {
         >
           {config.simpleText}
         </h1>
-      </div>
 
-      <div className="w-full px-6 pb-safe mb-24 flex justify-center">
         <Button
           onClick={handleDismiss}
-          className="w-full max-w-sm mx-auto bg-white text-gray-900 hover:bg-gray-100 font-bold text-xl rounded-2xl min-h-[64px]"
+          className="mt-4 bg-white text-gray-900 hover:bg-gray-100 font-bold text-xl rounded-2xl min-h-[64px]"
           style={{ 
             padding: "24px 64px",
             boxShadow: "0 4px 20px rgba(0, 0, 0, 0.3)",

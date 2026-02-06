@@ -70,7 +70,7 @@ const VisualAlert = ({ emergencyType, onDismiss, extraMessage }: VisualAlertProp
       className="fixed inset-0 z-[9999] flex flex-col items-center justify-center animate-emergency-flash"
       style={{ minHeight: "100dvh" }}
     >
-      <div className="flex flex-col items-center justify-center gap-4 text-center px-6 flex-1">
+      <div className="flex flex-col items-center justify-center gap-6 text-center px-6">
         <span 
           className="leading-none"
           style={{ fontSize: "clamp(60px, 15vw, 80px)" }}
@@ -100,7 +100,7 @@ const VisualAlert = ({ emergencyType, onDismiss, extraMessage }: VisualAlertProp
         
         {extraMessage && (
           <p 
-            className="text-white/90 font-medium mt-4"
+            className="text-white/90 font-medium"
             style={{ 
               fontSize: "clamp(16px, 4vw, 20px)",
               textShadow: "1px 1px 3px rgba(0, 0, 0, 0.8)",
@@ -109,15 +109,12 @@ const VisualAlert = ({ emergencyType, onDismiss, extraMessage }: VisualAlertProp
             {extraMessage}
           </p>
         )}
-      </div>
 
-      {/* Safe area padding for bottom button */}
-      <div className="w-full px-6 pb-safe mb-24 flex justify-center">
         <Button
           onClick={handleDismiss}
-          className="w-full max-w-sm mx-auto bg-white text-gray-900 hover:bg-gray-100 font-bold text-lg rounded-xl min-h-[56px]"
+          className="mt-8 bg-white text-gray-900 hover:bg-gray-100 font-bold text-lg rounded-xl min-h-[56px]"
           style={{ 
-            padding: "16px 48px",
+            padding: "16px 64px",
             boxShadow: "0 4px 20px rgba(0, 0, 0, 0.3)",
           }}
         >

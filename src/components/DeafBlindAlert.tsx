@@ -66,7 +66,7 @@ const DeafBlindAlert = ({ emergencyType, onDismiss }: DeafBlindAlertProps) => {
       className="fixed inset-0 z-[9999] flex flex-col items-center justify-center bg-black"
       style={{ minHeight: "100dvh" }}
     >
-      <div className="flex flex-col items-center justify-center gap-6 text-center px-8 flex-1">
+      <div className="flex flex-col items-center justify-center gap-6 text-center px-8">
         <div className="px-6 py-4 bg-yellow-400 rounded-lg">
           <h1 className="font-black text-black text-3xl">
             {config.title}
@@ -77,23 +77,21 @@ const DeafBlindAlert = ({ emergencyType, onDismiss }: DeafBlindAlertProps) => {
           {config.action}
         </p>
         
-        <div className="mt-4 px-4 py-2 bg-red-600 rounded-full animate-pulse">
+        <div className="px-4 py-2 bg-red-600 rounded-full animate-pulse">
           <span className="text-white font-bold text-lg">
             📳 VIBRATING
           </span>
         </div>
         
-        <p className="text-gray-400 text-sm max-w-xs mt-4">
+        <p className="text-gray-400 text-sm max-w-xs">
           For caregiver: The device is vibrating continuously to alert the user.
         </p>
-      </div>
 
-      <div className="w-full px-6 pb-safe mb-24 flex justify-center">
         <Button
           onClick={handleDismiss}
-          className="w-full max-w-sm mx-auto bg-white text-black hover:bg-gray-100 font-bold text-xl rounded-xl min-h-[64px]"
+          className="mt-4 bg-white text-black hover:bg-gray-100 font-bold text-xl rounded-xl min-h-[64px]"
           style={{ 
-            padding: "20px 48px",
+            padding: "20px 64px",
             boxShadow: "0 4px 20px rgba(255, 255, 255, 0.2)",
           }}
         >
