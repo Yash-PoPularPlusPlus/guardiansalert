@@ -22,9 +22,9 @@ interface UseFireAlarmDetectionOptions {
 // Fire alarm frequency range (Hz)
 const MIN_FREQUENCY = 3000;
 const MAX_FREQUENCY = 4000;
-const AMPLITUDE_THRESHOLD = 150; // Out of 255
-const DETECTION_DURATION_MS = 2000; // Must persist for 2 seconds
-const BEEP_INTERVAL_MS = 250; // Expected beep interval ~0.25-0.3s
+const AMPLITUDE_THRESHOLD = 140; // Out of 255 - slightly lower for faster detection
+const DETECTION_DURATION_MS = 500; // FAST: Only 0.5 seconds to confirm (was 2 seconds)
+const MIN_PEAK_COUNT = 2; // FAST: Only need 2 beeps (was 4)
 const FFT_SIZE = 2048;
 const SAMPLE_RATE = 44100; // Standard sample rate
 const COOLDOWN_DURATION_MS = 30000; // 30 second cooldown
@@ -181,8 +181,8 @@ export const useFireAlarmDetection = ({
           detectionProgress: progress,
         }));
 
-        // Need at least 2 seconds of detection with multiple beeps
-        if (detectionDuration >= DETECTION_DURATION_MS && peakCountRef.current >= 4) {
+        // FAST: Only need 0.5 seconds of detection with 2+ beeps
+        if (detectionDuration >= DETECTION_DURATION_MS && peakCountRef.current >= MIN_PEAK_COUNT) {
           if (!hasTriggeredRef.current) {
             hasTriggeredRef.current = true;
             cooldownRef.current = now + COOLDOWN_DURATION_MS;

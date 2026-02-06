@@ -1,4 +1,4 @@
-import { useEffect, useCallback, useState, forwardRef, useImperativeHandle, useRef } from "react";
+import { useEffect, useState, forwardRef, useImperativeHandle, useRef, useCallback } from "react";
 import { Mic, MicOff, AlertCircle, Flame, Shield, Clock, RotateCcw } from "lucide-react";
 import { useFireAlarmDetection } from "@/hooks/useFireAlarmDetection";
 import { unlockAudioForEmergency } from "@/components/AudioAlert";
@@ -21,36 +21,14 @@ const AudioMonitor = forwardRef<AudioMonitorHandle, AudioMonitorProps>(({ enable
   const onAlertTriggeredRef = useRef(onAlertTriggered);
   onAlertTriggeredRef.current = onAlertTriggered; // Always current
 
-  // This callback is stable (empty deps) but uses ref to call the latest function
+  // INSTANT callback - no delays, no toasts, just trigger immediately
   const handleFireAlarmDetected = useCallback(() => {
-    console.log("[AudioMonitor] ========================================");
-    console.log("[AudioMonitor] Fire alarm CONFIRMED! Triggering alert IMMEDIATELY...");
-    console.log("[AudioMonitor] ========================================");
-    
-    // CRITICAL: Unlock audio and trigger alert FIRST - before anything else
-    // This ensures zero delay between detection and full-screen alert
+    // CRITICAL: Trigger alert IMMEDIATELY - no logging, no delays
     unlockAudioForEmergency();
-    
-    console.log("[AudioMonitor] Calling onAlertTriggeredRef.current('fire') NOW...");
-    try {
-      onAlertTriggeredRef.current("fire");
-      console.log("[AudioMonitor] Alert triggered successfully!");
-    } catch (error) {
-      console.error("[AudioMonitor] Error calling onAlertTriggered:", error);
-    }
-    
-    // Show confirmed state and toast AFTER alert is triggered (non-blocking)
+    onAlertTriggeredRef.current("fire");
     setShowDetectionAlert(true);
-    toast({
-      title: "🔊 Fire alarm detected!",
-      description: "Emergency alert activated",
-    });
-    
-    // Reset detection alert state after a short delay
-    setTimeout(() => {
-      setShowDetectionAlert(false);
-    }, 2000);
-  }, []); // Empty deps - ref handles getting latest callback
+    setTimeout(() => setShowDetectionAlert(false), 2000);
+  }, []);
 
   const { 
     isListening, 
@@ -67,10 +45,7 @@ const AudioMonitor = forwardRef<AudioMonitorHandle, AudioMonitorProps>(({ enable
 
   // Expose resetCooldown to parent via ref
   useImperativeHandle(ref, () => ({
-    resetCooldown: () => {
-      console.log("[AudioMonitor] Resetting cooldown via ref...");
-      resetCooldown();
-    }
+    resetCooldown
   }), [resetCooldown]);
 
   // Show error toast if permission denied

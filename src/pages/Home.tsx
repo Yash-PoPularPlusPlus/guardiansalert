@@ -136,34 +136,16 @@ const Home = () => {
     await notifyEmergencyContacts(type);
   };
 
-  // CRITICAL: Direct callback - NOT using useCallback to avoid stale closures
-  // This function will be recreated on every render, which is what we want
-  // The AudioMonitor stores this in a ref internally, so it always gets the latest version
+  // INSTANT callback - trigger alert immediately, do everything else in parallel
   const handleAutoDetectedAlert = (type: EmergencyType) => {
-    console.log("[Guardian] ========================================");
-    console.log("[Guardian] AUTO-DETECTION TRIGGERED!");
-    console.log("[Guardian] Emergency type:", type);
-    console.log("[Guardian] alertState before trigger:", alertState);
-    console.log("[Guardian] ========================================");
-    
-    // Unlock audio for browsers that require user interaction
+    // CRITICAL: Show alert FIRST - absolute minimum code before UI
     unlockAudioForEmergency();
-    
-    // Directly call the functions - no refs needed since this is recreated each render
-    console.log("[Guardian] Calling triggerPersonalizedAlert...");
     triggerPersonalizedAlert(type);
-    console.log("[Guardian] Alert triggered!");
     
-    // Log the automatic detection
-    console.log("[Guardian] Adding to activity log...");
+    // Everything below happens AFTER alert is showing (non-blocking)
     const updated = addDetectionEntry(type, "automatic");
     setActivityLog(updated);
-    console.log("[Guardian] Activity log updated");
-    
-    // Send SMS to emergency contacts
-    console.log("[Guardian] Sending SMS notifications...");
-    notifyEmergencyContacts(type);
-    console.log("[Guardian] SMS notifications initiated");
+    notifyEmergencyContacts(type); // Already async, runs in parallel
   };
 
   const getProfileLabel = () => {
@@ -175,49 +157,29 @@ const Home = () => {
   if (!isComplete) return null;
 
   const handleDismissAlert = () => {
-    console.log("[Guardian] Dismissing alert and resetting detection...");
     dismissAlert();
     resetSmsFlag();
-    // CRITICAL: Reset the cooldown so detection can work immediately again
     audioMonitorRef.current?.resetCooldown();
-    console.log("[Guardian] Ready for next detection!");
   };
 
   // Render the appropriate alert based on config
   const renderAlert = () => {
-    console.log("[renderAlert] alertState:", alertState);
-    console.log("[renderAlert] isActive:", alertState.isActive);
-    console.log("[renderAlert] config:", alertState.config);
-    console.log("[renderAlert] emergencyType:", alertState.emergencyType);
-    
     if (!alertState.isActive || !alertState.config || !alertState.emergencyType) {
-      console.log("[renderAlert] Conditions not met, returning null");
       return null;
     }
 
     const { config, emergencyType } = alertState;
-    console.log("[renderAlert] showVisual:", config.showVisual);
-    console.log("[renderAlert] showAudio:", config.showAudio);
-    console.log("[renderAlert] showDeafBlind:", config.showDeafBlind);
-    console.log("[renderAlert] showCognitive:", config.showCognitive);
 
     if (config.showDeafBlind) {
-      console.log("[renderAlert] Rendering DeafBlindAlert");
       return <DeafBlindAlert emergencyType={emergencyType} onDismiss={handleDismissAlert} />;
     }
 
     if (config.showCognitive) {
-      console.log("[renderAlert] Rendering CognitiveAlert");
       return <CognitiveAlert emergencyType={emergencyType} onDismiss={handleDismissAlert} />;
     }
 
-    // For deaf users: showVisual=true, showAudio=false
-    // For blind users: showVisual=false, showAudio=true
-    console.log("[renderAlert] Rendering Visual/Audio alerts");
-    
     if (config.showVisual && !config.showAudio) {
-      // Deaf user - only visual alert (full screen flashing)
-      console.log("[renderAlert] DEAF USER - Rendering VisualAlert ONLY");
+      // Deaf user - only visual alert
       return (
         <VisualAlert 
           emergencyType={emergencyType} 
@@ -229,7 +191,6 @@ const Home = () => {
     
     if (config.showAudio && !config.showVisual) {
       // Blind user - only audio alert
-      console.log("[renderAlert] BLIND USER - Rendering AudioAlert ONLY");
       return (
         <AudioAlert 
           emergencyType={emergencyType} 
@@ -238,8 +199,7 @@ const Home = () => {
       );
     }
 
-    // Both visual and audio (mobility, nonverbal, default)
-    console.log("[renderAlert] Rendering BOTH Visual and Audio alerts");
+    // Both visual and audio
     return (
       <>
         <VisualAlert 
