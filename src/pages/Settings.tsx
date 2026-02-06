@@ -236,7 +236,7 @@ const Settings = () => {
                 <div className="space-y-1">
                   <div className="flex items-center gap-2">
                     <Mic className="w-4 h-4 text-primary" />
-                    <Label className="font-medium">Fire Alarm Detection</Label>
+                    <Label className="font-medium">Natural Disaster Detection</Label>
                   </div>
                   <p className="text-xs text-muted-foreground">Required for protection</p>
                 </div>
