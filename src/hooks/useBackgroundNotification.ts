@@ -56,13 +56,16 @@ export const useBackgroundNotification = ({
     }
 
     try {
-      const notification = new Notification(title, {
+      // Extended notification options (renotify is not in standard TS types but supported by browsers)
+      const extendedOptions = {
         ...options,
         requireInteraction: true, // Keep notification until user interacts
         tag: "emergency-alert", // Replace previous notifications with same tag
         renotify: true, // Vibrate device again even if replacing existing notification
         silent: false, // Allow system notification sound
-      });
+      } as NotificationOptions & { renotify?: boolean };
+
+      const notification = new Notification(title, extendedOptions);
 
       notification.onclick = function(event) {
         // Prevent the browser from focusing the notification's origin
