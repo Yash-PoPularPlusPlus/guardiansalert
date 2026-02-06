@@ -17,14 +17,18 @@ interface UseFireAlarmDetectionOptions {
   enabled?: boolean;
 }
 
-// Fire alarm frequency range - WIDE to catch various alarms
-const MIN_FREQUENCY = 2500;
-const MAX_FREQUENCY = 4500;
+// Fire alarm frequency range (high-pitched beeping)
+const ALARM_MIN_FREQ = 3000;
+const ALARM_MAX_FREQ = 4000;
 
-// Detection thresholds - RELAXED for sensitivity
-const MIN_AMPLITUDE = 40; // Lower threshold to detect quieter sounds
-const REQUIRED_DETECTIONS = 6; // ~600ms of detection
-const MAX_MISSES = 5; // More tolerance for gaps
+// Voice frequency range to check against (to filter out speech)
+const VOICE_MAX_FREQ = 2500;
+
+// Detection thresholds
+const MIN_AMPLITUDE = 60; // Moderate threshold
+const VOICE_RATIO_THRESHOLD = 1.5; // Alarm must be 1.5x louder than voice range
+const REQUIRED_DETECTIONS = 8; // ~800ms of detection
+const MAX_MISSES = 4; // Tolerance for gaps
 const ANALYSIS_INTERVAL_MS = 100;
 const COOLDOWN_DURATION_MS = 30000;
 
@@ -44,14 +48,12 @@ export const useFireAlarmDetection = ({
     cooldownRemaining: 0,
   });
 
-  // Audio refs
   const audioContextRef = useRef<AudioContext | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
   const sourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const intervalRef = useRef<number | null>(null);
   
-  // Detection state refs (to avoid closure issues)
   const detectionCountRef = useRef(0);
   const missCountRef = useRef(0);
   const hasTriggeredRef = useRef(false);
@@ -59,16 +61,13 @@ export const useFireAlarmDetection = ({
   const wasDetectingRef = useRef(false);
   const enabledRef = useRef(enabled);
   
-  // Callback refs
   const onFireAlarmDetectedRef = useRef(onFireAlarmDetected);
   const onDetectionStartRef = useRef(onDetectionStart);
   
-  // Keep refs updated
   enabledRef.current = enabled;
   onFireAlarmDetectedRef.current = onFireAlarmDetected;
   onDetectionStartRef.current = onDetectionStart;
 
-  // Analysis function using refs only (no state dependencies)
   const runAnalysis = useCallback(() => {
     const analyser = analyserRef.current;
     if (!analyser || !enabledRef.current) return;
@@ -87,41 +86,47 @@ export const useFireAlarmDetection = ({
       return;
     }
 
-    // Get frequency data
     const frequencyData = new Uint8Array(analyser.frequencyBinCount);
     analyser.getByteFrequencyData(frequencyData);
 
-    // Calculate bin indices for fire alarm range
-    const minBin = Math.floor((MIN_FREQUENCY * FFT_SIZE) / sampleRate);
-    const maxBin = Math.ceil((MAX_FREQUENCY * FFT_SIZE) / sampleRate);
+    // Calculate bin indices
+    const alarmMinBin = Math.floor((ALARM_MIN_FREQ * FFT_SIZE) / sampleRate);
+    const alarmMaxBin = Math.ceil((ALARM_MAX_FREQ * FFT_SIZE) / sampleRate);
+    const voiceMaxBin = Math.ceil((VOICE_MAX_FREQ * FFT_SIZE) / sampleRate);
 
-    // Find peak in fire alarm range
-    let peakMagnitude = 0;
-    let peakBin = minBin;
-    for (let i = minBin; i <= maxBin && i < frequencyData.length; i++) {
-      if (frequencyData[i] > peakMagnitude) {
-        peakMagnitude = frequencyData[i];
-        peakBin = i;
+    // Find peak in fire alarm range (3000-4000 Hz)
+    let alarmPeak = 0;
+    let alarmPeakBin = alarmMinBin;
+    for (let i = alarmMinBin; i <= alarmMaxBin && i < frequencyData.length; i++) {
+      if (frequencyData[i] > alarmPeak) {
+        alarmPeak = frequencyData[i];
+        alarmPeakBin = i;
       }
     }
     
-    const peakFreq = (peakBin * sampleRate) / FFT_SIZE;
-
-    // Find overall max for dominance check
-    let overallMax = 0;
-    for (let i = 0; i < frequencyData.length; i++) {
-      if (frequencyData[i] > overallMax) overallMax = frequencyData[i];
+    // Find peak in voice range (0-2500 Hz)
+    let voicePeak = 0;
+    for (let i = 0; i <= voiceMaxBin && i < frequencyData.length; i++) {
+      if (frequencyData[i] > voicePeak) {
+        voicePeak = frequencyData[i];
+      }
     }
 
-    // Detection criteria: loud enough AND somewhat dominant in spectrum
-    const isValid = peakMagnitude >= MIN_AMPLITUDE && peakMagnitude >= overallMax * 0.3;
+    const alarmFreq = (alarmPeakBin * sampleRate) / FFT_SIZE;
+    
+    // Detection criteria:
+    // 1. Alarm frequency range is loud enough
+    // 2. Alarm range is significantly louder than voice range (filters out speech)
+    const isLoudEnough = alarmPeak >= MIN_AMPLITUDE;
+    const dominatesVoice = voicePeak === 0 || alarmPeak >= voicePeak * VOICE_RATIO_THRESHOLD;
+    const isValid = isLoudEnough && dominatesVoice;
 
-    // Debug log when there's significant sound
-    if (peakMagnitude > 30) {
+    // Debug log
+    if (alarmPeak > 40 || voicePeak > 40) {
       console.log("🎤", {
-        freq: Math.round(peakFreq),
-        mag: peakMagnitude,
-        max: overallMax,
+        alarm: alarmPeak,
+        voice: voicePeak,
+        ratio: voicePeak > 0 ? (alarmPeak / voicePeak).toFixed(1) : "∞",
         valid: isValid,
         count: detectionCountRef.current,
       });
@@ -133,7 +138,7 @@ export const useFireAlarmDetection = ({
       if (!wasDetectingRef.current) {
         wasDetectingRef.current = true;
         onDetectionStartRef.current?.();
-        console.log("🔊 Detection started");
+        console.log("🔊 Fire alarm pattern detected at", Math.round(alarmFreq), "Hz");
       }
       
       detectionCountRef.current++;
@@ -147,15 +152,13 @@ export const useFireAlarmDetection = ({
         cooldownRemaining: 0,
       }));
 
-      // Trigger alarm
       if (isConfirmed && !hasTriggeredRef.current) {
         hasTriggeredRef.current = true;
         cooldownEndRef.current = now + COOLDOWN_DURATION_MS;
         
-        console.log("🔥 FIRE ALARM CONFIRMED!", { freq: Math.round(peakFreq), mag: peakMagnitude });
+        console.log("🔥 FIRE ALARM CONFIRMED!", { freq: Math.round(alarmFreq), amplitude: alarmPeak });
         onFireAlarmDetectedRef.current();
         
-        // Reset after delay
         setTimeout(() => {
           hasTriggeredRef.current = false;
           detectionCountRef.current = 0;
@@ -167,7 +170,6 @@ export const useFireAlarmDetection = ({
       missCountRef.current++;
       
       if (missCountRef.current >= MAX_MISSES) {
-        console.log("❌ Detection reset");
         detectionCountRef.current = 0;
         missCountRef.current = 0;
         wasDetectingRef.current = false;
@@ -181,19 +183,15 @@ export const useFireAlarmDetection = ({
     }
   }, []);
 
-  // Start listening
   const startListening = useCallback(async () => {
     if (!enabledRef.current) return;
     
-    // Clean up any existing
     if (intervalRef.current) {
       clearInterval(intervalRef.current);
       intervalRef.current = null;
     }
 
     try {
-      console.log("🎙️ Starting microphone...");
-      
       const stream = await navigator.mediaDevices.getUserMedia({ 
         audio: {
           echoCancellation: false,
@@ -215,7 +213,7 @@ export const useFireAlarmDetection = ({
       source.connect(analyser);
       sourceRef.current = source;
 
-      console.log("✅ Microphone active, sample rate:", audioContext.sampleRate);
+      console.log("✅ Listening for fire alarms (3000-4000 Hz)");
 
       setState({
         isListening: true,
@@ -226,7 +224,6 @@ export const useFireAlarmDetection = ({
         cooldownRemaining: 0,
       });
 
-      // Start analysis loop
       intervalRef.current = window.setInterval(runAnalysis, ANALYSIS_INTERVAL_MS);
       
     } catch (error: any) {
@@ -250,7 +247,6 @@ export const useFireAlarmDetection = ({
     }
   }, [runAnalysis]);
 
-  // Stop listening
   const stopListening = useCallback(() => {
     if (intervalRef.current) {
       clearInterval(intervalRef.current);
@@ -275,7 +271,6 @@ export const useFireAlarmDetection = ({
     setState(prev => ({ ...prev, isListening: false }));
   }, []);
 
-  // Reset cooldown
   const resetCooldown = useCallback(() => {
     cooldownEndRef.current = 0;
     hasTriggeredRef.current = false;
@@ -290,7 +285,6 @@ export const useFireAlarmDetection = ({
     }));
   }, []);
 
-  // Auto-start/stop based on enabled prop
   useEffect(() => {
     if (enabled) {
       startListening();
