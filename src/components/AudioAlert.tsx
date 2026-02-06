@@ -41,7 +41,6 @@ const AudioAlert = ({ emergencyType, onDismiss }: AudioAlertProps) => {
       
       const ctx = getAudioContext();
       
-      // Create new oscillator (oscillators can only be started once)
       oscillatorRef.current = ctx.createOscillator();
       gainNodeRef.current = ctx.createGain();
 
@@ -53,7 +52,6 @@ const AudioAlert = ({ emergencyType, onDismiss }: AudioAlertProps) => {
       gainNodeRef.current.connect(ctx.destination);
       oscillatorRef.current.start();
 
-      // Alternate between frequencies every 0.3 seconds
       let highFreq = true;
       sirenIntervalRef.current = setInterval(() => {
         if (oscillatorRef.current && audioContextRef.current && audioContextRef.current.state === "running") {
@@ -62,10 +60,8 @@ const AudioAlert = ({ emergencyType, onDismiss }: AudioAlertProps) => {
           highFreq = !highFreq;
         }
       }, 300);
-      
-      console.log("Siren started");
     } catch (error) {
-      console.error("Failed to start siren:", error);
+      // Silently handle audio errors
     }
   };
 
@@ -87,14 +83,11 @@ const AudioAlert = ({ emergencyType, onDismiss }: AudioAlertProps) => {
       } catch (e) {}
       gainNodeRef.current = null;
     }
-    console.log("Siren stopped");
-    // Don't close AudioContext - keep it alive for next cycle
   };
 
   const speakAnnouncement = (): Promise<void> => {
     return new Promise((resolve) => {
       if (!("speechSynthesis" in window) || !isActiveRef.current) {
-        console.log("Speech synthesis not available or inactive");
         setTimeout(resolve, 100);
         return;
       }
@@ -123,21 +116,16 @@ const AudioAlert = ({ emergencyType, onDismiss }: AudioAlertProps) => {
       };
 
       utterance.onend = safeResolve;
-      utterance.onerror = (e) => {
-        console.error("Speech error:", e);
-        safeResolve();
-      };
+      utterance.onerror = safeResolve;
 
       setTimeout(safeResolve, 5000);
 
-      console.log("Speaking:", message);
       window.speechSynthesis.speak(utterance);
     });
   };
 
   const runCycle = async () => {
     while (isActiveRef.current) {
-      // Siren phase (3 seconds)
       setCurrentPhase("siren");
       startSiren();
       
@@ -150,13 +138,11 @@ const AudioAlert = ({ emergencyType, onDismiss }: AudioAlertProps) => {
 
       if (!isActiveRef.current) break;
 
-      // Voice phase
       setCurrentPhase("voice");
       await speakAnnouncement();
 
       if (!isActiveRef.current) break;
 
-      // Pause phase (0.5 seconds)
       setCurrentPhase("pause");
       await new Promise<void>((resolve) => {
         cycleTimeoutRef.current = setTimeout(resolve, 500);
@@ -174,7 +160,6 @@ const AudioAlert = ({ emergencyType, onDismiss }: AudioAlertProps) => {
 
     stopSiren();
     
-    // Now close the AudioContext
     if (audioContextRef.current) {
       audioContextRef.current.close();
       audioContextRef.current = null;
