@@ -26,6 +26,7 @@ const App = () => (
           <Route path="/onboarding/how-it-works" element={<HowItWorks />} />
           <Route path="/onboarding/disability" element={<DisabilitySelection />} />
           <Route path="/onboarding/contacts" element={<EmergencyContacts />} />
+          <Route path="/onboarding/permissions" element={<PermissionsSetup />} />
           <Route path="/home" element={<Home />} />
           <Route path="/activity" element={<Activity />} />
           <Route path="/settings" element={<Settings />} />
