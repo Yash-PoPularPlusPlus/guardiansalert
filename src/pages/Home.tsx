@@ -167,6 +167,10 @@ const Home = () => {
     dismissAlert();
     resetSmsFlag();
     audioMonitorRef.current?.resetCooldown();
+    
+    // Stop all aggressive alert mechanisms
+    stopSiren();
+    stopBlinking();
   };
 
   const renderAlert = () => {
