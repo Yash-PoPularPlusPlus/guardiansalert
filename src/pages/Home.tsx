@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import { Shield, Mic, CheckCircle, Users, MessageSquare, Clock, AlertTriangle, Monitor, Bell } from "lucide-react";
+import { Bell, Shield, Mic, CheckCircle, Users, MessageSquare, Clock, AlertTriangle, Monitor } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
