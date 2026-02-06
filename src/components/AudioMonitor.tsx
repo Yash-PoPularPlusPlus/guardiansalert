@@ -24,30 +24,27 @@ const AudioMonitor = forwardRef<AudioMonitorHandle, AudioMonitorProps>(({ enable
   // This callback is stable (empty deps) but uses ref to call the latest function
   const handleFireAlarmDetected = useCallback(() => {
     console.log("[AudioMonitor] ========================================");
-    console.log("[AudioMonitor] Fire alarm CONFIRMED! Triggering alert...");
-    console.log("[AudioMonitor] onAlertTriggeredRef.current exists:", !!onAlertTriggeredRef.current);
+    console.log("[AudioMonitor] Fire alarm CONFIRMED! Triggering alert IMMEDIATELY...");
     console.log("[AudioMonitor] ========================================");
     
-    // Show confirmed state briefly
-    setShowDetectionAlert(true);
-    
-    // Show detection toast
-    toast({
-      title: "🔊 Fire alarm detected!",
-      description: "Activating emergency alert...",
-    });
-
-    // Unlock audio for browsers
+    // CRITICAL: Unlock audio and trigger alert FIRST - before anything else
+    // This ensures zero delay between detection and full-screen alert
     unlockAudioForEmergency();
-
-    // CRITICAL: Call the parent callback via ref to get LATEST version
-    console.log("[AudioMonitor] Calling onAlertTriggeredRef.current('fire')...");
+    
+    console.log("[AudioMonitor] Calling onAlertTriggeredRef.current('fire') NOW...");
     try {
       onAlertTriggeredRef.current("fire");
-      console.log("[AudioMonitor] onAlertTriggered called successfully!");
+      console.log("[AudioMonitor] Alert triggered successfully!");
     } catch (error) {
       console.error("[AudioMonitor] Error calling onAlertTriggered:", error);
     }
+    
+    // Show confirmed state and toast AFTER alert is triggered (non-blocking)
+    setShowDetectionAlert(true);
+    toast({
+      title: "🔊 Fire alarm detected!",
+      description: "Emergency alert activated",
+    });
     
     // Reset detection alert state after a short delay
     setTimeout(() => {
