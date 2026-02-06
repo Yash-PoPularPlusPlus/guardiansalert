@@ -38,15 +38,33 @@ const HowItWorks = () => {
     setIsRequestingPermission(true);
     
     try {
-      const permission = await Notification.requestPermission();
-      setNotificationStatus(permission as "default" | "granted" | "denied");
-      
-      if (permission === "granted") {
-        toast.success("Notifications enabled! You'll be alerted even when the app is in the background.");
-        localStorage.setItem("guardian_browser_notifications", "true");
-        localStorage.setItem("guardian_background_protection", "true");
+      // Force permission request if not already granted
+      if (Notification.permission !== 'granted') {
+        const permission = await Notification.requestPermission();
+        setNotificationStatus(permission as "default" | "granted" | "denied");
+        
+        if (permission === "granted") {
+          // Send a test notification to confirm it's working
+          new Notification("✅ Guardian Alert Enabled", { 
+            body: "Notifications enabled! You will be alerted even if this tab is closed.",
+            icon: "/favicon.ico",
+            tag: "setup-confirmation"
+          });
+          
+          toast.success("Notifications enabled! You'll be alerted even when the app is in the background.");
+          localStorage.setItem("guardian_browser_notifications", "true");
+          localStorage.setItem("guardian_background_protection", "true");
+        } else {
+          toast.error("Notifications blocked. You can enable them in browser settings.");
+        }
       } else {
-        toast.error("Notifications blocked. You can enable them in browser settings.");
+        // Already granted
+        new Notification("✅ Guardian Alert Ready", { 
+          body: "Your notification settings are already active!",
+          icon: "/favicon.ico",
+          tag: "setup-confirmation"
+        });
+        toast.success("Notifications already enabled!");
       }
     } catch (error) {
       console.error("Notification permission error:", error);
@@ -105,47 +123,67 @@ const HowItWorks = () => {
           ))}
         </div>
 
-        {/* Notification Permission Request */}
-        <div className="w-full bg-card rounded-xl p-4 border border-border space-y-3">
+        {/* CRITICAL: Notification Permission Request - Large prominent section */}
+        <div className={`w-full rounded-xl p-5 border-2 space-y-4 ${
+          notificationStatus === "granted" 
+            ? "bg-green-50 dark:bg-green-900/20 border-green-300 dark:border-green-700" 
+            : notificationStatus === "denied"
+              ? "bg-destructive/5 border-destructive/30"
+              : "bg-primary/5 border-primary/30"
+        }`}>
           <div className="flex items-center gap-3">
-            <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
+            <div className={`w-12 h-12 rounded-full flex items-center justify-center ${
               notificationStatus === "granted" 
-                ? "bg-green-100 dark:bg-green-900/30" 
+                ? "bg-green-100 dark:bg-green-900/50" 
                 : notificationStatus === "denied"
                   ? "bg-destructive/10"
                   : "bg-primary/10"
             }`}>
               {notificationStatus === "granted" ? (
-                <CheckCircle className="w-5 h-5 text-green-600 dark:text-green-400" />
+                <CheckCircle className="w-7 h-7 text-green-600 dark:text-green-400" />
               ) : notificationStatus === "denied" ? (
-                <XCircle className="w-5 h-5 text-destructive" />
+                <XCircle className="w-7 h-7 text-destructive" />
               ) : (
-                <Bell className="w-5 h-5 text-primary" />
+                <Bell className="w-7 h-7 text-primary animate-pulse" />
               )}
             </div>
             <div className="flex-1 text-left">
-              <p className="font-medium text-foreground text-sm">System Notifications</p>
-              <p className="text-xs text-muted-foreground">
+              <p className="font-bold text-foreground">🔔 Enable Emergency Alerts</p>
+              <p className="text-sm text-muted-foreground">
                 {notificationStatus === "granted" 
-                  ? "Enabled ✓ - You'll be alerted even in background"
+                  ? "✅ Enabled - You'll be alerted even when away"
                   : notificationStatus === "denied"
-                    ? "Blocked - Enable in browser settings"
-                    : "Get alerts when app is in background"
+                    ? "❌ Blocked - Enable in browser settings"
+                    : "Required for background protection"
                 }
               </p>
             </div>
           </div>
-          {notificationStatus === "default" && (
+          
+          {notificationStatus !== "granted" && (
             <Button
-              variant="outline"
-              size="sm"
-              className="w-full"
+              variant={notificationStatus === "denied" ? "outline" : "default"}
+              size="lg"
+              className={`w-full font-bold text-base py-6 ${
+                notificationStatus === "default" ? "animate-pulse bg-primary hover:bg-primary/90" : ""
+              }`}
               onClick={handleRequestNotifications}
               disabled={isRequestingPermission}
             >
-              <Bell className="w-4 h-4 mr-2" />
-              {isRequestingPermission ? "Requesting..." : "Enable Notifications"}
+              <Bell className="w-5 h-5 mr-2" />
+              {isRequestingPermission 
+                ? "Requesting Permission..." 
+                : notificationStatus === "denied"
+                  ? "Try Again (Check Browser Settings)"
+                  : "🛡️ Allow System Notifications"
+              }
             </Button>
+          )}
+          
+          {notificationStatus === "default" && (
+            <p className="text-xs text-center text-muted-foreground">
+              Click the button above, then click "Allow" in the browser popup
+            </p>
           )}
         </div>
 

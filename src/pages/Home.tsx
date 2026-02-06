@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import { Shield, Mic, CheckCircle, Users, MessageSquare, Clock, AlertTriangle, Monitor } from "lucide-react";
+import { Shield, Mic, CheckCircle, Users, MessageSquare, Clock, AlertTriangle, Monitor, Bell } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -56,6 +56,7 @@ const Home = () => {
   const [contactCount, setContactCount] = useState(0);
   const [protectedSince, setProtectedSince] = useState<string>("");
   const [disabilities, setDisabilitiesState] = useState<DisabilityType[]>([]);
+  const [notificationPermission, setNotificationPermission] = useState<string>("checking...");
   const { alertState, triggerPersonalizedAlert, dismissAlert } = usePersonalizedAlert();
   const { notifyEmergencyContacts, resetSmsFlag } = useSmsNotification();
   const audioMonitorRef = useRef<AudioMonitorHandle>(null);
@@ -107,9 +108,20 @@ const Home = () => {
     // Load activity log
     setActivityLog(getDetectionLog());
 
+    // Check notification permission
+    if ("Notification" in window) {
+      setNotificationPermission(Notification.permission);
+    } else {
+      setNotificationPermission("unsupported");
+    }
+
     // Update "last checked" every second
     checkIntervalRef.current = window.setInterval(() => {
       setLastChecked("Just now");
+      // Also refresh notification permission status
+      if ("Notification" in window) {
+        setNotificationPermission(Notification.permission);
+      }
     }, 1000);
 
     return () => {
@@ -121,16 +133,23 @@ const Home = () => {
 
   // Automatic fire alarm detection callback with background support
   const handleAutoDetectedAlert = useCallback((type: EmergencyType) => {
+    console.log("🚨 Fire alarm detected! Triggering all alert mechanisms...");
+    
     unlockAudioForEmergency();
     
     // Always start title blinking (works even in foreground, helps visibility)
     startBlinking();
     
-    // Check if we're in background - send aggressive alerts
-    if (document.visibilityState === "hidden" || !document.hasFocus()) {
-      // Send high-priority system notification
-      sendEmergencyNotification(type);
-      
+    // ALWAYS try to send notification (the function will check if tab is hidden)
+    // Also serves as a verification that notifications work
+    const isBackground = document.visibilityState === "hidden" || !document.hasFocus();
+    console.log("Is background:", isBackground, "Visibility:", document.visibilityState, "Has focus:", document.hasFocus());
+    
+    // Send high-priority system notification (works in both foreground and background)
+    sendEmergencyNotification(type);
+    
+    // If in background, also play aggressive sounds
+    if (isBackground) {
       // Play loud wake-up sound even in background
       playWakeUpSound();
       
@@ -283,6 +302,32 @@ const Home = () => {
                     </span>
                   </div>
                 )}
+                
+                {/* Notification Permission Status - Verification Log */}
+                <div className={`flex items-center gap-2 py-2 px-3 rounded-lg ${
+                  notificationPermission === "granted" 
+                    ? "bg-green-100 dark:bg-green-900/30" 
+                    : notificationPermission === "denied"
+                      ? "bg-destructive/10"
+                      : "bg-yellow-100 dark:bg-yellow-900/30"
+                }`}>
+                  <Bell className={`w-3.5 h-3.5 ${
+                    notificationPermission === "granted" 
+                      ? "text-green-600 dark:text-green-400" 
+                      : notificationPermission === "denied"
+                        ? "text-destructive"
+                        : "text-yellow-600 dark:text-yellow-400"
+                  }`} />
+                  <span className={`text-xs font-medium ${
+                    notificationPermission === "granted" 
+                      ? "text-green-700 dark:text-green-300" 
+                      : notificationPermission === "denied"
+                        ? "text-destructive"
+                        : "text-yellow-700 dark:text-yellow-300"
+                  }`}>
+                    Notification Permission: {notificationPermission === "granted" ? "✅ Granted" : notificationPermission === "denied" ? "❌ Denied" : "⚠️ " + notificationPermission}
+                  </span>
+                </div>
                 
                 <p className="text-xs text-muted-foreground pt-2 border-t border-border w-full">
                   Your accessibility profile: {getDisabilityLabels()}
