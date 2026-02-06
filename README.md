@@ -1,4 +1,5 @@
 # 🛡️ Guardian Alert
+#### By: Yash, Shreyansh
 
 > *Because everyone deserves to hear the alarm.*
 
@@ -115,6 +116,13 @@ We believe technology should serve everyone, not just those who fit the "default
 ---
 
 **[Live Demo](https://guardiansalert.lovable.app)** • **[Pitch Video](https://www.youtube.com/playlist?list=PLRjIbTD2eeN5t_PZH_3GQrsMUdV6jLJw4)** • **[GitHub](https://github.com/Yash-PoPularPlusPlus/guardiansalert)**
+
+---
+
+### Contact
+yash015@e.ntu.edu.sg
+
+shreyans002@e.ntu.edu.sg
 
 ---
 
