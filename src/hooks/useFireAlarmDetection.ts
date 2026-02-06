@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback, useEffect, useMemo } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 
 export type DetectionStatus = "idle" | "detecting" | "confirmed" | "cooldown";
 
@@ -7,8 +7,8 @@ export interface FireAlarmDetectionState {
   error: string | null;
   permissionDenied: boolean;
   detectionStatus: DetectionStatus;
-  detectionProgress: number; // 0-100 percent towards confirmation
-  cooldownRemaining: number; // seconds remaining in cooldown
+  detectionProgress: number;
+  cooldownRemaining: number;
 }
 
 interface UseFireAlarmDetectionOptions {
@@ -17,20 +17,18 @@ interface UseFireAlarmDetectionOptions {
   enabled?: boolean;
 }
 
-// Fire alarm frequency range (Hz) - widened for real-world variation
-const MIN_FREQUENCY = 3400;
-const MAX_FREQUENCY = 4000;
+// Fire alarm frequency range - WIDE to catch various alarms
+const MIN_FREQUENCY = 2500;
+const MAX_FREQUENCY = 4500;
 
-// Detection thresholds
-const MIN_AMPLITUDE = 80; // Lowered slightly for sensitivity
-const REQUIRED_DETECTIONS = 8; // Need 8 out of 10 checks (~1 second)
-const MAX_MISSES = 3; // Allow up to 3 misses before reset
-const ANALYSIS_INTERVAL_MS = 100; // Analyze every 100ms
-const COOLDOWN_DURATION_MS = 30000; // 30 second cooldown
+// Detection thresholds - RELAXED for sensitivity
+const MIN_AMPLITUDE = 40; // Lower threshold to detect quieter sounds
+const REQUIRED_DETECTIONS = 6; // ~600ms of detection
+const MAX_MISSES = 5; // More tolerance for gaps
+const ANALYSIS_INTERVAL_MS = 100;
+const COOLDOWN_DURATION_MS = 30000;
 
-// Technical constants
 const FFT_SIZE = 2048;
-const SAMPLE_RATE = 44100;
 
 export const useFireAlarmDetection = ({
   onFireAlarmDetected,
@@ -46,141 +44,118 @@ export const useFireAlarmDetection = ({
     cooldownRemaining: 0,
   });
 
+  // Audio refs
   const audioContextRef = useRef<AudioContext | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
   const sourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
-  const analysisIntervalRef = useRef<number | null>(null);
+  const intervalRef = useRef<number | null>(null);
   
-  // Detection tracking
-  const detectionCountRef = useRef<number>(0);
-  const missCountRef = useRef<number>(0);
-  const hasTriggeredRef = useRef<boolean>(false);
-  const cooldownRef = useRef<number>(0);
-  const wasDetectingRef = useRef<boolean>(false);
+  // Detection state refs (to avoid closure issues)
+  const detectionCountRef = useRef(0);
+  const missCountRef = useRef(0);
+  const hasTriggeredRef = useRef(false);
+  const cooldownEndRef = useRef(0);
+  const wasDetectingRef = useRef(false);
+  const enabledRef = useRef(enabled);
   
-  // Store callbacks in refs
+  // Callback refs
   const onFireAlarmDetectedRef = useRef(onFireAlarmDetected);
   const onDetectionStartRef = useRef(onDetectionStart);
   
+  // Keep refs updated
+  enabledRef.current = enabled;
   onFireAlarmDetectedRef.current = onFireAlarmDetected;
   onDetectionStartRef.current = onDetectionStart;
 
-  // Find peak frequency in the fire alarm range specifically
-  const findPeakInRange = useCallback((frequencyData: Uint8Array) => {
-    const minBin = Math.floor((MIN_FREQUENCY * FFT_SIZE) / SAMPLE_RATE);
-    const maxBin = Math.ceil((MAX_FREQUENCY * FFT_SIZE) / SAMPLE_RATE);
-    
-    let maxMagnitude = 0;
+  // Analysis function using refs only (no state dependencies)
+  const runAnalysis = useCallback(() => {
+    const analyser = analyserRef.current;
+    if (!analyser || !enabledRef.current) return;
+
+    const now = Date.now();
+    const sampleRate = audioContextRef.current?.sampleRate || 44100;
+
+    // Handle cooldown
+    if (cooldownEndRef.current > now) {
+      const remaining = Math.ceil((cooldownEndRef.current - now) / 1000);
+      setState(prev => 
+        prev.detectionStatus !== "cooldown" || prev.cooldownRemaining !== remaining
+          ? { ...prev, detectionStatus: "cooldown", cooldownRemaining: remaining, detectionProgress: 0 }
+          : prev
+      );
+      return;
+    }
+
+    // Get frequency data
+    const frequencyData = new Uint8Array(analyser.frequencyBinCount);
+    analyser.getByteFrequencyData(frequencyData);
+
+    // Calculate bin indices for fire alarm range
+    const minBin = Math.floor((MIN_FREQUENCY * FFT_SIZE) / sampleRate);
+    const maxBin = Math.ceil((MAX_FREQUENCY * FFT_SIZE) / sampleRate);
+
+    // Find peak in fire alarm range
+    let peakMagnitude = 0;
     let peakBin = minBin;
-    
-    // Find peak within fire alarm frequency range
     for (let i = minBin; i <= maxBin && i < frequencyData.length; i++) {
-      if (frequencyData[i] > maxMagnitude) {
-        maxMagnitude = frequencyData[i];
+      if (frequencyData[i] > peakMagnitude) {
+        peakMagnitude = frequencyData[i];
         peakBin = i;
       }
     }
     
-    const peakFrequency = (peakBin * SAMPLE_RATE) / FFT_SIZE;
-    
-    // Also get overall peak for comparison
+    const peakFreq = (peakBin * sampleRate) / FFT_SIZE;
+
+    // Find overall max for dominance check
     let overallMax = 0;
     for (let i = 0; i < frequencyData.length; i++) {
-      if (frequencyData[i] > overallMax) {
-        overallMax = frequencyData[i];
-      }
-    }
-    
-    return {
-      frequency: peakFrequency,
-      magnitude: maxMagnitude,
-      overallMax,
-      // Fire alarm should be dominant in its range
-      isDominant: maxMagnitude >= overallMax * 0.5,
-    };
-  }, []);
-
-  // Main analysis function - runs every 100ms
-  const analyzeAudio = useCallback(() => {
-    if (!analyserRef.current || !enabled) return;
-
-    const now = Date.now();
-
-    // Handle cooldown
-    if (cooldownRef.current > now) {
-      const remaining = Math.ceil((cooldownRef.current - now) / 1000);
-      setState(prev => ({
-        ...prev,
-        detectionStatus: "cooldown",
-        cooldownRemaining: remaining,
-        detectionProgress: 0,
-      }));
-      return;
-    } else if (state.detectionStatus === "cooldown") {
-      setState(prev => ({
-        ...prev,
-        detectionStatus: "idle",
-        cooldownRemaining: 0,
-      }));
+      if (frequencyData[i] > overallMax) overallMax = frequencyData[i];
     }
 
-    const analyser = analyserRef.current;
-    const bufferLength = analyser.frequencyBinCount;
-    const frequencyData = new Uint8Array(bufferLength);
-    analyser.getByteFrequencyData(frequencyData);
+    // Detection criteria: loud enough AND somewhat dominant in spectrum
+    const isValid = peakMagnitude >= MIN_AMPLITUDE && peakMagnitude >= overallMax * 0.3;
 
-    const result = findPeakInRange(frequencyData);
-    
-    // Check if it matches fire alarm characteristics
-    const isValidDetection = result.magnitude >= MIN_AMPLITUDE && result.isDominant;
-
-    // Debug logging (every 10th analysis to reduce spam)
-    if (detectionCountRef.current > 0 || result.magnitude > 50) {
-      console.log("🎤 Audio:", {
-        freq: result.frequency.toFixed(0) + " Hz",
-        mag: result.magnitude,
-        valid: isValidDetection,
-        detections: detectionCountRef.current,
-        misses: missCountRef.current,
+    // Debug log when there's significant sound
+    if (peakMagnitude > 30) {
+      console.log("🎤", {
+        freq: Math.round(peakFreq),
+        mag: peakMagnitude,
+        max: overallMax,
+        valid: isValid,
+        count: detectionCountRef.current,
       });
     }
 
-    if (isValidDetection) {
-      // Reset miss counter on valid detection
+    if (isValid) {
       missCountRef.current = 0;
       
-      // Start detection tracking
       if (!wasDetectingRef.current) {
         wasDetectingRef.current = true;
         onDetectionStartRef.current?.();
+        console.log("🔊 Detection started");
       }
       
       detectionCountRef.current++;
-      
-      // Calculate progress (0-100%)
       const progress = Math.min(100, (detectionCountRef.current / REQUIRED_DETECTIONS) * 100);
+      const isConfirmed = detectionCountRef.current >= REQUIRED_DETECTIONS;
       
       setState(prev => ({
         ...prev,
-        detectionStatus: detectionCountRef.current >= REQUIRED_DETECTIONS ? "confirmed" : "detecting",
+        detectionStatus: isConfirmed ? "confirmed" : "detecting",
         detectionProgress: progress,
+        cooldownRemaining: 0,
       }));
 
-      // Trigger if we have enough detections
-      if (detectionCountRef.current >= REQUIRED_DETECTIONS && !hasTriggeredRef.current) {
+      // Trigger alarm
+      if (isConfirmed && !hasTriggeredRef.current) {
         hasTriggeredRef.current = true;
-        cooldownRef.current = now + COOLDOWN_DURATION_MS;
+        cooldownEndRef.current = now + COOLDOWN_DURATION_MS;
         
-        console.log("🔥 Fire alarm CONFIRMED:", {
-          frequency: result.frequency.toFixed(0) + " Hz",
-          amplitude: result.magnitude,
-          detections: detectionCountRef.current,
-        });
-        
+        console.log("🔥 FIRE ALARM CONFIRMED!", { freq: Math.round(peakFreq), mag: peakMagnitude });
         onFireAlarmDetectedRef.current();
         
-        // Reset after trigger
+        // Reset after delay
         setTimeout(() => {
           hasTriggeredRef.current = false;
           detectionCountRef.current = 0;
@@ -189,12 +164,10 @@ export const useFireAlarmDetection = ({
         }, 5000);
       }
     } else if (wasDetectingRef.current) {
-      // We were detecting but this sample didn't match
       missCountRef.current++;
       
-      // Allow some misses before resetting
       if (missCountRef.current >= MAX_MISSES) {
-        console.log("❌ Detection reset after", missCountRef.current, "misses");
+        console.log("❌ Detection reset");
         detectionCountRef.current = 0;
         missCountRef.current = 0;
         wasDetectingRef.current = false;
@@ -204,23 +177,23 @@ export const useFireAlarmDetection = ({
           detectionStatus: "idle",
           detectionProgress: 0,
         }));
-      } else {
-        // Still in detection mode, just a brief interruption
-        const progress = Math.min(100, (detectionCountRef.current / REQUIRED_DETECTIONS) * 100);
-        setState(prev => ({
-          ...prev,
-          detectionStatus: "detecting",
-          detectionProgress: progress,
-        }));
       }
     }
-  }, [enabled, state.detectionStatus, findPeakInRange]);
+  }, []);
 
   // Start listening
   const startListening = useCallback(async () => {
-    if (!enabled) return;
+    if (!enabledRef.current) return;
+    
+    // Clean up any existing
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current);
+      intervalRef.current = null;
+    }
 
     try {
+      console.log("🎙️ Starting microphone...");
+      
       const stream = await navigator.mediaDevices.getUserMedia({ 
         audio: {
           echoCancellation: false,
@@ -235,12 +208,14 @@ export const useFireAlarmDetection = ({
 
       const analyser = audioContext.createAnalyser();
       analyser.fftSize = FFT_SIZE;
-      analyser.smoothingTimeConstant = 0.5; // More smoothing for stability
+      analyser.smoothingTimeConstant = 0.3;
       analyserRef.current = analyser;
 
       const source = audioContext.createMediaStreamSource(stream);
       source.connect(analyser);
       sourceRef.current = source;
+
+      console.log("✅ Microphone active, sample rate:", audioContext.sampleRate);
 
       setState({
         isListening: true,
@@ -251,79 +226,58 @@ export const useFireAlarmDetection = ({
         cooldownRemaining: 0,
       });
 
-      // Analyze every 100ms
-      analysisIntervalRef.current = window.setInterval(analyzeAudio, ANALYSIS_INTERVAL_MS);
-    } catch (error: any) {
-      console.error("Microphone access error:", error);
+      // Start analysis loop
+      intervalRef.current = window.setInterval(runAnalysis, ANALYSIS_INTERVAL_MS);
       
-      if (error.name === "NotAllowedError" || error.name === "PermissionDeniedError") {
-        setState({
-          isListening: false,
-          error: "Guardian Alert needs microphone access to detect fire alarms. Please enable in browser settings.",
-          permissionDenied: true,
-          detectionStatus: "idle",
-          detectionProgress: 0,
-          cooldownRemaining: 0,
-        });
-      } else if (error.name === "NotFoundError") {
-        setState({
-          isListening: false,
-          error: "No microphone detected",
-          permissionDenied: false,
-          detectionStatus: "idle",
-          detectionProgress: 0,
-          cooldownRemaining: 0,
-        });
-      } else {
-        setState({
-          isListening: false,
-          error: "Could not access microphone",
-          permissionDenied: false,
-          detectionStatus: "idle",
-          detectionProgress: 0,
-          cooldownRemaining: 0,
-        });
-      }
+    } catch (error: any) {
+      console.error("❌ Microphone error:", error);
+      
+      const isPermissionDenied = error.name === "NotAllowedError" || error.name === "PermissionDeniedError";
+      const isNotFound = error.name === "NotFoundError";
+      
+      setState({
+        isListening: false,
+        error: isPermissionDenied 
+          ? "Microphone access required. Please enable in browser settings."
+          : isNotFound 
+            ? "No microphone detected"
+            : "Could not access microphone",
+        permissionDenied: isPermissionDenied,
+        detectionStatus: "idle",
+        detectionProgress: 0,
+        cooldownRemaining: 0,
+      });
     }
-  }, [enabled, analyzeAudio]);
+  }, [runAnalysis]);
 
   // Stop listening
   const stopListening = useCallback(() => {
-    if (analysisIntervalRef.current) {
-      clearInterval(analysisIntervalRef.current);
-      analysisIntervalRef.current = null;
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current);
+      intervalRef.current = null;
     }
-
-    if (sourceRef.current) {
-      sourceRef.current.disconnect();
-      sourceRef.current = null;
-    }
-
-    if (audioContextRef.current) {
-      audioContextRef.current.close();
-      audioContextRef.current = null;
-    }
-
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach(track => track.stop());
-      streamRef.current = null;
-    }
-
+    
+    sourceRef.current?.disconnect();
+    sourceRef.current = null;
+    
+    audioContextRef.current?.close();
+    audioContextRef.current = null;
+    
+    streamRef.current?.getTracks().forEach(t => t.stop());
+    streamRef.current = null;
+    
     analyserRef.current = null;
     detectionCountRef.current = 0;
     missCountRef.current = 0;
     hasTriggeredRef.current = false;
     wasDetectingRef.current = false;
 
-    setState(prev => ({
-      ...prev,
-      isListening: false,
-    }));
+    setState(prev => ({ ...prev, isListening: false }));
   }, []);
 
   // Reset cooldown
   const resetCooldown = useCallback(() => {
-    cooldownRef.current = 0;
+    cooldownEndRef.current = 0;
     hasTriggeredRef.current = false;
     detectionCountRef.current = 0;
     missCountRef.current = 0;
@@ -336,17 +290,14 @@ export const useFireAlarmDetection = ({
     }));
   }, []);
 
-  // Auto-start when enabled changes
+  // Auto-start/stop based on enabled prop
   useEffect(() => {
     if (enabled) {
       startListening();
     } else {
       stopListening();
     }
-
-    return () => {
-      stopListening();
-    };
+    return () => stopListening();
   }, [enabled, startListening, stopListening]);
 
   return {
