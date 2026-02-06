@@ -63,7 +63,19 @@ export const useBackgroundNotification = ({
       });
 
       notification.onclick = () => {
+        // Focus the window when notification is clicked
         window.focus();
+        
+        // Try to bring the window to front using multiple methods
+        if (typeof window.focus === 'function') {
+          window.focus();
+        }
+        
+        // For some browsers, we need to also try focusing the parent
+        if (window.parent && typeof window.parent.focus === 'function') {
+          window.parent.focus();
+        }
+        
         notification.close();
         onNotificationClickRef.current?.();
       };
