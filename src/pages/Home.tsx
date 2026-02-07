@@ -140,7 +140,7 @@ const Home = () => {
 
     // Initiate the phone call
     // NOTE: For production, use "tel:911". Using placeholder for testing safety.
-    const phoneNumber = "911"; // Change to test number like "1234567890" for testing
+    const phoneNumber = "+6593555176"; // Test number - change back to "911" for production
     window.open(`tel:${phoneNumber}`, "_blank");
     console.log("[EmergencyCall] Initiated call to", phoneNumber);
 
