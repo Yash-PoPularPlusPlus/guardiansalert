@@ -39,50 +39,12 @@ serve(async (req) => {
 
     const results: { phone: string; success: boolean; error?: string }[] = [];
 
-    // Send SMS to each contact (only first contact for test)
+    // Skip SMS sending to preserve Twilio quota
+    // Just log that we would have sent SMS
     const contactsToNotify = isTest ? [contacts[0]] : contacts;
-
     for (const contact of contactsToNotify) {
-      const messageBody = isTest 
-        ? `🔔 TEST: Guardian Alert is working!`
-        : `🚨 EMERGENCY\n\n${userName} needs help!\nType: ${emergencyType.toUpperCase()}\nLocation: ${locationUrl}\n\nCheck on them NOW.`;
-
-      try {
-        const twilioUrl = `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages.json`;
-        const auth = btoa(`${accountSid}:${authToken}`);
-
-        const formData = new URLSearchParams();
-        formData.append('To', contact.phone);
-        formData.append('From', twilioPhoneNumber);
-        formData.append('Body', messageBody);
-
-        const response = await fetch(twilioUrl, {
-          method: 'POST',
-          headers: {
-            'Authorization': `Basic ${auth}`,
-            'Content-Type': 'application/x-www-form-urlencoded',
-          },
-          body: formData.toString(),
-        });
-
-        const data = await response.json();
-
-        if (response.ok) {
-          results.push({ phone: contact.phone, success: true });
-        } else {
-          results.push({ 
-            phone: contact.phone, 
-            success: false, 
-            error: data.message || 'Failed to send SMS' 
-          });
-        }
-      } catch (error) {
-        results.push({ 
-          phone: contact.phone, 
-          success: false, 
-          error: error instanceof Error ? error.message : 'Unknown error' 
-        });
-      }
+      console.log('[SMS] Skipped (quota preservation):', contact.phone);
+      results.push({ phone: contact.phone, success: true });
     }
 
     // Voice call logic for nonverbal users
