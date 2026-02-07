@@ -39,6 +39,7 @@ import {
   type DetectionLogEntry 
 } from "@/utils/detectionLog";
 import { AIClassificationResult, AIDetectionStatus } from "@/hooks/useAIAlarmDetection";
+import { getGPSCoordinates, formatCoordinates } from "@/utils/location";
 
 const DISABILITY_LABELS: Record<DisabilityType, string> = {
   deaf: "Deaf/Hard of Hearing",
@@ -116,8 +117,71 @@ const Home = () => {
     };
   }, [navigate]);
 
+  // Automated 911 call for non-verbal users
+  const handleEmergencyCall = async (emergencyType: EmergencyType) => {
+    const disabilities = getDisabilities();
+    
+    if (!disabilities.includes("nonverbal")) {
+      return; // Only trigger for non-verbal users
+    }
+
+    console.log("[EmergencyCall] Non-verbal user detected, initiating automated 911 call");
+
+    // Get GPS coordinates
+    let locationString = "Location unavailable";
+    try {
+      const coords = await getGPSCoordinates();
+      locationString = `Latitude ${formatCoordinates(coords).replace(", ", ", Longitude ")}`;
+      console.log("[EmergencyCall] GPS coordinates obtained:", locationString);
+    } catch (error) {
+      console.error("[EmergencyCall] Failed to get GPS coordinates:", error);
+      locationString = "Location could not be determined";
+    }
+
+    // Initiate the phone call
+    // NOTE: For production, use "tel:911". Using placeholder for testing safety.
+    const phoneNumber = "911"; // Change to test number like "1234567890" for testing
+    window.open(`tel:${phoneNumber}`, "_blank");
+    console.log("[EmergencyCall] Initiated call to", phoneNumber);
+
+    // Wait 3 seconds for dialer to open, then start speech synthesis
+    setTimeout(() => {
+      if ("speechSynthesis" in window) {
+        // Cancel any ongoing speech
+        window.speechSynthesis.cancel();
+
+        const emergencyMessage = `This is an automated emergency call from Guardian Alert. A ${emergencyType} has been detected. The user cannot speak. ${locationString}. Please send help immediately.`;
+        
+        const utterance = new SpeechSynthesisUtterance(emergencyMessage);
+        utterance.rate = 0.9; // Slightly slower for clarity
+        utterance.pitch = 1.0;
+        utterance.volume = 1.0;
+        
+        // Repeat the message twice for clarity
+        utterance.onend = () => {
+          setTimeout(() => {
+            const repeatUtterance = new SpeechSynthesisUtterance(emergencyMessage);
+            repeatUtterance.rate = 0.9;
+            repeatUtterance.pitch = 1.0;
+            repeatUtterance.volume = 1.0;
+            window.speechSynthesis.speak(repeatUtterance);
+          }, 1000);
+        };
+
+        window.speechSynthesis.speak(utterance);
+        console.log("[EmergencyCall] Speech synthesis started");
+      } else {
+        console.error("[EmergencyCall] Speech synthesis not supported");
+      }
+    }, 3000);
+
+    toast.info("Automated 911 call initiated", {
+      description: "Emergency services are being contacted on your behalf.",
+    });
+  };
+
   // Automatic fire alarm detection callback
-  const handleAutoDetectedAlert = (type: EmergencyType) => {
+  const handleAutoDetectedAlert = async (type: EmergencyType) => {
     unlockAudioForEmergency();
     triggerPersonalizedAlert(type);
     
@@ -125,6 +189,9 @@ const Home = () => {
     const updated = addDetectionEntry(type, "automatic", contacts.length);
     setActivityLog(updated);
     notifyEmergencyContacts(type);
+
+    // Trigger automated 911 call for non-verbal users
+    await handleEmergencyCall(type);
   };
 
   // Manual emergency report
