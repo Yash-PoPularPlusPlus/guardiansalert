@@ -53,6 +53,7 @@ const Settings = () => {
   const [sensitivity, setSensitivity] = useState("medium");
   const [browserNotifications, setBrowserNotifications] = useState(false);
   const [smsEnabled, setSmsEnabled] = useState(true);
+  const [voiceCallEnabled, setVoiceCallEnabled] = useState(true);
   const [showHowItWorks, setShowHowItWorks] = useState(false);
   const [showPrivacy, setShowPrivacy] = useState(false);
 
@@ -63,7 +64,7 @@ const Settings = () => {
       try {
         setDisabilities(JSON.parse(savedDisabilities));
       } catch (e) {
-        console.error("Failed to parse disabilities");
+        // Failed to parse disabilities
       }
     }
 
@@ -73,7 +74,7 @@ const Settings = () => {
       try {
         setContacts(JSON.parse(savedContacts));
       } catch (e) {
-        console.error("Failed to parse contacts");
+        // Failed to parse contacts
       }
     }
 
@@ -92,6 +93,10 @@ const Settings = () => {
     // Load SMS enabled preference (default ON for production)
     const savedSmsEnabled = localStorage.getItem("guardian_sms_enabled");
     setSmsEnabled(savedSmsEnabled !== "false");
+
+    // Load voice call enabled preference (default ON for production)
+    const savedVoiceCallEnabled = localStorage.getItem("guardian_voice_call_enabled");
+    setVoiceCallEnabled(savedVoiceCallEnabled !== "false");
   }, []);
 
   const handleSensitivityChange = (value: string) => {
@@ -150,7 +155,15 @@ const Settings = () => {
     setSmsEnabled(enabled);
     localStorage.setItem("guardian_sms_enabled", enabled ? "true" : "false");
     toast.success("Profile updated successfully", {
-      description: enabled ? "SMS alerts enabled – real SMS will be sent" : "SMS alerts disabled – testing mode active",
+      description: enabled ? "SMS alerts enabled – real SMS will be sent" : "SMS alerts disabled – no SMS will be sent",
+    });
+  };
+
+  const handleVoiceCallToggle = (enabled: boolean) => {
+    setVoiceCallEnabled(enabled);
+    localStorage.setItem("guardian_voice_call_enabled", enabled ? "true" : "false");
+    toast.success("Profile updated successfully", {
+      description: enabled ? "Emergency calls enabled – calls will be placed during emergencies" : "Emergency calls disabled – no calls will be placed",
     });
   };
 
@@ -163,7 +176,7 @@ const Settings = () => {
         parsed.onboardingComplete = false;
         localStorage.setItem("guardian_data", JSON.stringify(parsed));
       } catch (e) {
-        console.error("Failed to update guardian data");
+        // Failed to update guardian data
       }
     }
     navigate("/onboarding/disability");
@@ -178,7 +191,7 @@ const Settings = () => {
         parsed.onboardingComplete = false;
         localStorage.setItem("guardian_data", JSON.stringify(parsed));
       } catch (e) {
-        console.error("Failed to update guardian data");
+        // Failed to update guardian data
       }
     }
     navigate("/onboarding/contacts");
@@ -308,6 +321,23 @@ const Settings = () => {
 
           <Card>
             <CardContent className="pt-6 space-y-6">
+              {/* Emergency Voice Call Toggle */}
+              <div className="flex items-center justify-between">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <Phone className="w-4 h-4 text-destructive" />
+                    <Label className="font-medium">Emergency Voice Calls</Label>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Enable to place automated emergency calls. Disable during testing.
+                  </p>
+                </div>
+                <Switch
+                  checked={voiceCallEnabled}
+                  onCheckedChange={handleVoiceCallToggle}
+                />
+              </div>
+
               {/* SMS Alerts Toggle */}
               <div className="flex items-center justify-between">
                 <div className="space-y-1">
