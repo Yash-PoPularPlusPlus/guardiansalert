@@ -52,7 +52,7 @@ const Settings = () => {
   const [contacts, setContacts] = useState<EmergencyContact[]>([]);
   const [sensitivity, setSensitivity] = useState("medium");
   const [browserNotifications, setBrowserNotifications] = useState(false);
-  const [smsEnabled, setSmsEnabled] = useState(false);
+  const [smsEnabled, setSmsEnabled] = useState(true);
   const [showHowItWorks, setShowHowItWorks] = useState(false);
   const [showPrivacy, setShowPrivacy] = useState(false);
 
@@ -89,9 +89,9 @@ const Settings = () => {
       setBrowserNotifications(true);
     }
 
-    // Load SMS enabled preference (default OFF for testing)
+    // Load SMS enabled preference (default ON for production)
     const savedSmsEnabled = localStorage.getItem("guardian_sms_enabled");
-    setSmsEnabled(savedSmsEnabled === "true");
+    setSmsEnabled(savedSmsEnabled !== "false");
   }, []);
 
   const handleSensitivityChange = (value: string) => {
