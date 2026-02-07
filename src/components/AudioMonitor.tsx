@@ -4,18 +4,18 @@ import { useAIAlarmDetection, AIClassificationResult, AIDetectionStatus } from "
 import { toast } from "@/hooks/use-toast";
 
 interface AudioMonitorProps {
-  enabled: boolean;
+  // REMOVED: enabled prop - component is now self-managing
   onAlertTriggered: (type: "fire") => void;
   onAIClassification?: (result: AIClassificationResult, status: AIDetectionStatus) => void;
   onFireAlarmConfirmed?: () => void;
 }
 
 export interface AudioMonitorHandle {
-  resetCooldown: () => void;
+  reset: () => void;
 }
 
-// Internal state machine type
-type InternalStatus = "IDLE" | "DETECTING" | "CONFIRMED" | "COOLDOWN";
+// Internal state machine type - SINGLE SOURCE OF TRUTH
+type InternalStatus = "IDLE" | "DETECTING" | "COOLDOWN";
 
 // Comprehensive list of alarm-related sounds
 const ALARM_SOUNDS = [
@@ -33,7 +33,6 @@ const MAX_MISSES = 4;
 const COOLDOWN_DURATION_MS = 30000;
 
 const AudioMonitor = forwardRef<AudioMonitorHandle, AudioMonitorProps>(({ 
-  enabled, 
   onAlertTriggered,
   onAIClassification,
   onFireAlarmConfirmed 
@@ -58,12 +57,17 @@ const AudioMonitor = forwardRef<AudioMonitorHandle, AudioMonitorProps>(({
   // Update refs on each render
   onFireAlarmConfirmedRef.current = onFireAlarmConfirmed;
 
-  // Use the AI detection hook
-  const { status: aiStatus, lastClassification, error: aiError } = useAIAlarmDetection({ enabled });
+  // Derive whether AI should be active based on internal status
+  const isAIEnabled = internalStatus !== "COOLDOWN";
 
-  // Reset cooldown function - clears everything and returns to IDLE
-  const resetCooldown = useCallback(() => {
-    console.log("[AudioMonitor] resetCooldown called - clearing all state");
+  // Use the AI detection hook - ONLY enabled when NOT in cooldown
+  const { status: aiStatus, lastClassification, error: aiError } = useAIAlarmDetection({ 
+    enabled: isAIEnabled 
+  });
+
+  // Reset function - clears cooldown and returns to IDLE
+  const reset = useCallback(() => {
+    console.log("[AudioMonitor] reset() called - clearing all state and returning to IDLE");
     
     // Clear timers
     if (cooldownTimerRef.current) {
@@ -84,14 +88,14 @@ const AudioMonitor = forwardRef<AudioMonitorHandle, AudioMonitorProps>(({
     setMissCount(0);
   }, []);
 
-  // Expose resetCooldown to parent via ref
+  // Expose reset to parent via ref
   useImperativeHandle(ref, () => ({
-    resetCooldown
-  }), [resetCooldown]);
+    reset
+  }), [reset]);
 
   // Start cooldown period - self-contained timer management
   const startCooldown = useCallback(() => {
-    console.log("[AudioMonitor] Starting cooldown for", COOLDOWN_DURATION_MS, "ms");
+    console.log("[AudioMonitor] Starting COOLDOWN for", COOLDOWN_DURATION_MS, "ms");
     
     // Set initial cooldown time
     setCooldownRemaining(COOLDOWN_DURATION_MS);
@@ -106,7 +110,7 @@ const AudioMonitor = forwardRef<AudioMonitorHandle, AudioMonitorProps>(({
     
     // End cooldown after duration - automatically return to IDLE
     cooldownTimerRef.current = setTimeout(() => {
-      console.log("[AudioMonitor] Cooldown complete - returning to IDLE");
+      console.log("[AudioMonitor] Cooldown complete - automatically returning to IDLE");
       
       // Clear interval
       if (cooldownIntervalRef.current) {
@@ -166,22 +170,19 @@ const AudioMonitor = forwardRef<AudioMonitorHandle, AudioMonitorProps>(({
       
       // Check if threshold reached
       if (detectionCountRef.current >= CONFIRMATION_THRESHOLD) {
-        console.log("[CONFIRMED] Threshold reached! Triggering alert!");
+        console.log("[CONFIRMED] Threshold reached! Triggering alert and entering COOLDOWN!");
         
-        // 1. Set status to CONFIRMED briefly
-        setInternalStatus("CONFIRMED");
-        
-        // 2. Trigger the alert callback ONCE
+        // 1. Trigger the alert callbacks ONCE
         onAlertTriggered("fire");
         onFireAlarmConfirmedRef.current?.();
         
-        // 3. Reset detection counters
+        // 2. Reset detection counters
         detectionCountRef.current = 0;
         missCountRef.current = 0;
         setDetectionCount(0);
         setMissCount(0);
         
-        // 4. Immediately transition to COOLDOWN
+        // 3. Immediately transition to COOLDOWN
         setInternalStatus("COOLDOWN");
         startCooldown();
       }
@@ -241,12 +242,6 @@ const AudioMonitor = forwardRef<AudioMonitorHandle, AudioMonitorProps>(({
   // Get status icon and text based on internalStatus
   const getStatusDisplay = () => {
     switch (internalStatus) {
-      case "CONFIRMED":
-        return { 
-          icon: <Flame className="w-5 h-5 animate-pulse" />, 
-          text: "🚨 Fire Alarm Detected!",
-          subtext: "Alert triggered"
-        };
       case "COOLDOWN":
         return { 
           icon: <Clock className="w-5 h-5" />, 
@@ -322,8 +317,6 @@ const AudioMonitor = forwardRef<AudioMonitorHandle, AudioMonitorProps>(({
   // Determine background color based on internalStatus
   const getBackgroundClass = () => {
     switch (internalStatus) {
-      case "CONFIRMED":
-        return "bg-destructive text-destructive-foreground";
       case "COOLDOWN":
         return "bg-muted text-muted-foreground";
       case "DETECTING":
