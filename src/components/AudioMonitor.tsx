@@ -14,26 +14,20 @@ export interface AudioMonitorHandle {
   resetCooldown: () => void;
 }
 
-// Comprehensive list of fire alarm related categories from YAMNet
-const FIRE_ALARM_CATEGORIES = [
+// Comprehensive list of alarm-related sounds
+const ALARM_SOUNDS = [
   "Fire alarm",
   "Smoke detector, smoke alarm",
-  "Smoke detector",
   "Siren",
+  "Alarm",
   "Beep, bleep",
   "Ding",
-  "Alarm",
-  "Civil defense siren",
-  "Buzzer",
-  "Alarm clock",
-  "Emergency vehicle",
-  "Fire engine, fire truck (siren)",
 ];
 
-const CONFIDENCE_THRESHOLD = 0.6;
-const REQUIRED_CONSECUTIVE_DETECTIONS = 4;
-const COOLDOWN_DURATION_MS = 30000; // 30 seconds cooldown
-const MAX_MISSES = 3; // Allow up to 3 non-alarm classifications before resetting
+const CONFIDENCE_THRESHOLD = 0.3;
+const CONFIRMATION_THRESHOLD = 3;
+const MAX_MISSES = 4;
+const COOLDOWN_DURATION_MS = 30000;
 
 const AudioMonitor = forwardRef<AudioMonitorHandle, AudioMonitorProps>(({ 
   enabled, 
@@ -41,7 +35,12 @@ const AudioMonitor = forwardRef<AudioMonitorHandle, AudioMonitorProps>(({
   onAIClassification,
   onFireAlarmConfirmed 
 }, ref) => {
-  const [consecutiveDetections, setConsecutiveDetections] = useState(0);
+  // Refs for detection counters (stable across renders)
+  const detectionCountRef = useRef(0);
+  const missCountRef = useRef(0);
+  
+  // State for UI updates
+  const [detectionCount, setDetectionCount] = useState(0);
   const [missCount, setMissCount] = useState(0);
   const [isInCooldown, setIsInCooldown] = useState(false);
   const [cooldownRemaining, setCooldownRemaining] = useState(0);
@@ -64,7 +63,9 @@ const AudioMonitor = forwardRef<AudioMonitorHandle, AudioMonitorProps>(({
   const resetCooldown = useCallback(() => {
     setIsInCooldown(false);
     setCooldownRemaining(0);
-    setConsecutiveDetections(0);
+    detectionCountRef.current = 0;
+    missCountRef.current = 0;
+    setDetectionCount(0);
     setMissCount(0);
     setShowConfirmedAlert(false);
     
@@ -102,7 +103,7 @@ const AudioMonitor = forwardRef<AudioMonitorHandle, AudioMonitorProps>(({
     }, COOLDOWN_DURATION_MS);
   }, [resetCooldown]);
 
-  // Monitor AI classification results
+  // Monitor AI classification results - Core detection logic
   useEffect(() => {
     // Always forward classification to parent for display
     if (lastClassification && onAIClassification) {
@@ -114,54 +115,65 @@ const AudioMonitor = forwardRef<AudioMonitorHandle, AudioMonitorProps>(({
       return;
     }
 
-    // Check if the detected category matches any fire alarm category
-    const detectedCategory = lastClassification.categoryName.toLowerCase();
-    const isFireAlarmCategory = FIRE_ALARM_CATEGORIES.some(
-      category => detectedCategory.includes(category.toLowerCase()) || 
-                  category.toLowerCase().includes(detectedCategory)
+    const detectedCategory = lastClassification.categoryName;
+    const confidence = lastClassification.score;
+    
+    // Check if detected sound matches any alarm category
+    const isAlarmSound = ALARM_SOUNDS.some(
+      sound => detectedCategory.toLowerCase().includes(sound.toLowerCase()) || 
+               sound.toLowerCase().includes(detectedCategory.toLowerCase())
     );
-    const meetsConfidenceThreshold = lastClassification.score >= CONFIDENCE_THRESHOLD;
 
-    if (isFireAlarmCategory && meetsConfidenceThreshold) {
-      // Fire alarm detected - increment count and reset misses
+    if (isAlarmSound && confidence > CONFIDENCE_THRESHOLD) {
+      // Alarm sound detected - increment count, reset misses
+      detectionCountRef.current += 1;
+      missCountRef.current = 0;
+      
+      // Update state for UI
+      setDetectionCount(detectionCountRef.current);
       setMissCount(0);
-      setConsecutiveDetections(prev => {
-        const newCount = prev + 1;
+      
+      console.log(`[DETECTED] Sound: ${detectedCategory}, Confidence: ${confidence}, Confirmations: ${detectionCountRef.current}`);
+      
+      // Check if threshold reached
+      if (detectionCountRef.current >= CONFIRMATION_THRESHOLD) {
+        console.log("[CONFIRMED] Threshold reached! Triggering alert!");
         
-        // Check if we've reached the threshold for confirmed detection
-        if (newCount >= REQUIRED_CONSECUTIVE_DETECTIONS) {
-          // Trigger the alert
-          setShowConfirmedAlert(true);
-          onAlertTriggeredRef.current("fire");
-          onFireAlarmConfirmedRef.current?.();
-          
-          // Start cooldown
-          startCooldown();
-          
-          // Hide confirmed alert after a brief display
-          setTimeout(() => setShowConfirmedAlert(false), 3000);
-          
-          return 0; // Reset after triggering
-        }
+        // Trigger the alert
+        setShowConfirmedAlert(true);
+        onAlertTriggeredRef.current("fire");
+        onFireAlarmConfirmedRef.current?.();
         
-        return newCount;
-      });
-    } else if (consecutiveDetections > 0) {
-      // Non-fire alarm sound detected while tracking potential alarm
-      setMissCount(prev => {
-        const newMissCount = prev + 1;
+        // Reset counters
+        detectionCountRef.current = 0;
+        missCountRef.current = 0;
+        setDetectionCount(0);
+        setMissCount(0);
         
-        // Only reset if we exceed the miss tolerance
-        if (newMissCount > MAX_MISSES) {
-          setConsecutiveDetections(0);
-          return 0;
-        }
+        // Start cooldown immediately
+        startCooldown();
         
-        return newMissCount;
-      });
+        // Hide confirmed alert after a brief display
+        setTimeout(() => setShowConfirmedAlert(false), 3000);
+      }
+    } else if (detectionCountRef.current > 0) {
+      // Non-alarm sound detected while tracking potential alarm
+      missCountRef.current += 1;
+      setMissCount(missCountRef.current);
+      
+      console.log(`[MISS] Non-alarm sound detected. Miss count: ${missCountRef.current}`);
+      
+      // Check if max misses exceeded
+      if (missCountRef.current > MAX_MISSES) {
+        console.log("[RESET] Max misses reached. Resetting detection.");
+        detectionCountRef.current = 0;
+        missCountRef.current = 0;
+        setDetectionCount(0);
+        setMissCount(0);
+      }
     }
-    // If consecutiveDetections === 0 and not a fire alarm, do nothing
-  }, [lastClassification, aiStatus, isInCooldown, consecutiveDetections, onAIClassification, startCooldown]);
+    // If detectionCountRef.current === 0 and not an alarm sound, do nothing
+  }, [lastClassification, aiStatus, isInCooldown, onAIClassification, startCooldown]);
 
   // Show error toast if there's an AI error
   useEffect(() => {
@@ -189,9 +201,9 @@ const AudioMonitor = forwardRef<AudioMonitorHandle, AudioMonitorProps>(({
   }, []);
 
   // Determine display state
-  const isDetecting = consecutiveDetections > 0;
+  const isDetecting = detectionCount > 0;
   const isReEvaluating = isDetecting && missCount > 0;
-  const progress = Math.min(100, (consecutiveDetections / REQUIRED_CONSECUTIVE_DETECTIONS) * 100);
+  const progress = Math.min(100, (detectionCount / CONFIRMATION_THRESHOLD) * 100);
   const cooldownSeconds = Math.ceil(cooldownRemaining / 1000);
 
   // Get status icon and text
@@ -206,22 +218,22 @@ const AudioMonitor = forwardRef<AudioMonitorHandle, AudioMonitorProps>(({
     if (isInCooldown) {
       return { 
         icon: <Clock className="w-5 h-5" />, 
-        text: "Cooldown Active",
-        subtext: `Resuming in ${cooldownSeconds}s`
+        text: `Cooldown: ${cooldownSeconds}s`,
+        subtext: "Resuming monitoring soon"
       };
     }
     if (isReEvaluating) {
       return { 
         icon: <Flame className="w-5 h-5 animate-pulse opacity-70" />, 
-        text: `Re-evaluating: ${consecutiveDetections}/${REQUIRED_CONSECUTIVE_DETECTIONS}`,
-        subtext: `Brief pause (${missCount}/${MAX_MISSES} misses)`
+        text: `Re-evaluating... (${missCount}/${MAX_MISSES})`,
+        subtext: `${detectionCount}/${CONFIRMATION_THRESHOLD} confirmations`
       };
     }
-    if (isDetecting) {
+    if (isDetecting && lastClassification) {
       return { 
         icon: <Flame className="w-5 h-5 animate-pulse" />, 
-        text: `Detecting: ${consecutiveDetections}/${REQUIRED_CONSECUTIVE_DETECTIONS}`,
-        subtext: lastClassification?.categoryName || "Analyzing..."
+        text: `Analyzing: ${lastClassification.categoryName} (${Math.round(lastClassification.score * 100)}%)`,
+        subtext: `${detectionCount}/${CONFIRMATION_THRESHOLD} confirmations`
       };
     }
     switch (aiStatus) {
