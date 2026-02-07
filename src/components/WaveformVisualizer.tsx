@@ -42,10 +42,10 @@ const WaveformVisualizer = ({ isActive, className = "" }: WaveformVisualizerProp
         const barHeight = bar * height * 0.8;
         const y = (height - barHeight) / 2;
 
-        // Create gradient
+        // Create gradient with proper semantic colors
         const gradient = ctx.createLinearGradient(x, y, x, y + barHeight);
-        gradient.addColorStop(0, isActive ? "rgba(59, 130, 246, 0.8)" : "rgba(148, 163, 184, 0.4)");
-        gradient.addColorStop(1, isActive ? "rgba(37, 99, 235, 0.6)" : "rgba(148, 163, 184, 0.2)");
+        gradient.addColorStop(0, isActive ? "hsl(217, 91%, 60%)" : "hsl(215, 16%, 47%)");
+        gradient.addColorStop(1, isActive ? "hsl(221, 83%, 53%)" : "hsl(215, 16%, 47%)");
 
         ctx.fillStyle = gradient;
         ctx.beginPath();

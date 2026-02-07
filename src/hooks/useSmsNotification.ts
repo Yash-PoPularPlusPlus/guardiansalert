@@ -18,7 +18,7 @@ export const getEmergencyContacts = (): Contact[] => {
       }
     }
   } catch (e) {
-    console.error("Failed to parse contacts:", e);
+    // Failed to parse contacts
   }
   return [];
 };
@@ -31,7 +31,7 @@ export const getUserName = (): string => {
       return parsed.userName || "Someone";
     }
   } catch (e) {
-    console.error("Failed to get user name:", e);
+    // Failed to get user name
   }
   return "Someone";
 };
@@ -93,10 +93,13 @@ export const useSmsNotification = () => {
     // Check if SMS is explicitly disabled (defaults to enabled)
     const smsDisabled = localStorage.getItem("guardian_sms_enabled") === "false";
     
-    if (smsDisabled) {
+    // Check if voice calls are explicitly disabled (defaults to enabled)
+    const voiceCallDisabled = localStorage.getItem("guardian_voice_call_enabled") === "false";
+    
+    if (smsDisabled && voiceCallDisabled) {
       toast({
-        title: "SMS simulated (testing mode) ✓",
-        description: "SMS alerts are disabled in settings",
+        title: "Testing mode active ✓",
+        description: "SMS and voice calls are disabled in settings",
       });
       return { success: true, simulated: true };
     }
@@ -126,19 +129,18 @@ export const useSmsNotification = () => {
       const locationData = await getCurrentLocationWithCoords();
       const userName = getUserName();
 
-      // Always trigger voice call to first contact
+      // Build request body based on settings
       const requestBody: Record<string, unknown> = {
         contacts,
         userName,
         emergencyType,
         locationUrl: locationData.url,
-        makeVoiceCall: true,
+        makeVoiceCall: !voiceCallDisabled,
         voiceCallTo: contacts[0].phone,
         latitude: locationData.latitude,
         longitude: locationData.longitude,
+        skipSms: smsDisabled,
       };
-
-      console.log("[SMS] Sending emergency request with voice call to:", contacts[0].phone);
 
       const { data, error } = await supabase.functions.invoke("send-sms", {
         body: requestBody,
@@ -155,15 +157,27 @@ export const useSmsNotification = () => {
 
       if (data?.success) {
         setLastSmsSentTime();
-        toast({
-          title: "Emergency contacts notified ✓",
-          description: `SMS sent to ${contacts.length} contact(s)`,
-        });
+        
+        // Show appropriate toasts based on what was sent
+        if (!smsDisabled) {
+          toast({
+            title: "📱 SMS alerts sent ✓",
+            description: `Notified ${contacts.length} emergency contact(s)`,
+          });
+        }
 
         // Show voice call toast if successful
-        if (data?.voiceCall?.success && contacts.length > 0) {
+        if (data?.voiceCall?.success && !voiceCallDisabled) {
           toast({
-            title: "Emergency call placed ✓",
+            title: "📞 Emergency call to 911 placed ✓",
+            description: `Calling ${contacts[0].name} for assistance`,
+          });
+        } else if (voiceCallDisabled) {
+          // No voice call toast when disabled
+        } else if (smsDisabled && !voiceCallDisabled) {
+          // Only voice call was made
+          toast({
+            title: "📞 Emergency call placed ✓",
             description: `Calling ${contacts[0].name}`,
           });
         }

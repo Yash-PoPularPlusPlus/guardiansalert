@@ -67,8 +67,6 @@ const AudioMonitor = forwardRef<AudioMonitorHandle, AudioMonitorProps>(({
 
   // Reset function - clears cooldown and returns to IDLE
   const reset = useCallback(() => {
-    console.log("[AudioMonitor] reset() called - clearing all state and returning to IDLE");
-    
     // Clear timers
     if (cooldownTimerRef.current) {
       clearTimeout(cooldownTimerRef.current);
@@ -95,8 +93,6 @@ const AudioMonitor = forwardRef<AudioMonitorHandle, AudioMonitorProps>(({
 
   // Start cooldown period - self-contained timer management
   const startCooldown = useCallback(() => {
-    console.log("[AudioMonitor] Starting COOLDOWN for", COOLDOWN_DURATION_MS, "ms");
-    
     // Set initial cooldown time
     setCooldownRemaining(COOLDOWN_DURATION_MS);
     
@@ -110,8 +106,6 @@ const AudioMonitor = forwardRef<AudioMonitorHandle, AudioMonitorProps>(({
     
     // End cooldown after duration - automatically return to IDLE
     cooldownTimerRef.current = setTimeout(() => {
-      console.log("[AudioMonitor] Cooldown complete - automatically returning to IDLE");
-      
       // Clear interval
       if (cooldownIntervalRef.current) {
         clearInterval(cooldownIntervalRef.current);
@@ -147,8 +141,6 @@ const AudioMonitor = forwardRef<AudioMonitorHandle, AudioMonitorProps>(({
     }
 
     // CRITICAL: Skip if this is the same classification we already processed
-    // This prevents re-triggering when status changes (e.g., COOLDOWN -> IDLE)
-    // but lastClassification hasn't actually changed
     if (lastClassification === lastProcessedClassificationRef.current) {
       return;
     }
@@ -173,12 +165,8 @@ const AudioMonitor = forwardRef<AudioMonitorHandle, AudioMonitorProps>(({
       setMissCount(0);
       setInternalStatus("DETECTING");
       
-      console.log(`[DETECTED] Sound: ${detectedCategory}, Confidence: ${confidence}, Confirmations: ${detectionCountRef.current}`);
-      
       // Check if threshold reached
       if (detectionCountRef.current >= CONFIRMATION_THRESHOLD) {
-        console.log("[CONFIRMED] Threshold reached! Triggering alert and entering COOLDOWN!");
-        
         // Trigger the alert callback ONCE (single callback, no duplicates)
         onFireAlarmConfirmedRef.current?.();
         
@@ -197,11 +185,8 @@ const AudioMonitor = forwardRef<AudioMonitorHandle, AudioMonitorProps>(({
       missCountRef.current += 1;
       setMissCount(missCountRef.current);
       
-      console.log(`[MISS] Non-alarm sound detected. Miss count: ${missCountRef.current}`);
-      
       // Check if max misses exceeded
       if (missCountRef.current > MAX_MISSES) {
-        console.log("[RESET] Max misses reached. Resetting detection.");
         detectionCountRef.current = 0;
         missCountRef.current = 0;
         setDetectionCount(0);

@@ -50,7 +50,6 @@ export const useAIAlarmDetection = ({ enabled }: UseAIAlarmDetectionProps) => {
 
   // Cleanup function
   const stopAudioProcessing = useCallback(() => {
-    console.log("[AI Detection] Stopping audio processing...");
     isProcessingRef.current = false;
     
     if (processorRef.current) {
@@ -98,8 +97,6 @@ export const useAIAlarmDetection = ({ enabled }: UseAIAlarmDetectionProps) => {
         setError(null);
         isInitializedRef.current = true;
 
-        console.log("[AI Detection] Initializing classifier...");
-
         // Dynamically import the module
         const tasksAudio = await import("@mediapipe/tasks-audio");
         
@@ -134,14 +131,12 @@ export const useAIAlarmDetection = ({ enabled }: UseAIAlarmDetectionProps) => {
         }
 
         classifierRef.current = audioClassifier;
-        console.log("[AI Detection] Classifier initialized successfully");
 
         // Start audio processing
         await startAudioProcessing();
       } catch (err) {
         if (!isMounted) return;
         const errorMessage = err instanceof Error ? err.message : "Failed to initialize audio classifier";
-        console.error("[AI Detection] Initialization error:", err);
         setError(errorMessage);
         setStatus("error");
         isInitializedRef.current = false;
@@ -150,8 +145,6 @@ export const useAIAlarmDetection = ({ enabled }: UseAIAlarmDetectionProps) => {
 
     const startAudioProcessing = async () => {
       try {
-        console.log("[AI Detection] Requesting microphone access...");
-        
         const stream = await navigator.mediaDevices.getUserMedia({
           audio: {
             echoCancellation: false,
@@ -166,7 +159,6 @@ export const useAIAlarmDetection = ({ enabled }: UseAIAlarmDetectionProps) => {
         }
 
         mediaStreamRef.current = stream;
-        console.log("[AI Detection] Microphone access granted");
 
         // Create audio context
         const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
@@ -203,7 +195,6 @@ export const useAIAlarmDetection = ({ enabled }: UseAIAlarmDetectionProps) => {
               if (categories && categories.length > 0) {
                 const topCategory = categories[0];
                 if (topCategory && topCategory.score > 0.05) {
-                  console.log(`[AI Detection] Detected: ${topCategory.categoryName} (${Math.round(topCategory.score * 100)}%)`);
                   setLastClassification({
                     categoryName: topCategory.categoryName,
                     score: topCategory.score,
@@ -212,24 +203,20 @@ export const useAIAlarmDetection = ({ enabled }: UseAIAlarmDetectionProps) => {
               }
             }
           } catch (classifyError) {
-            console.debug("[AI Detection] Classification error:", classifyError);
+            // Classification error - silently ignore
           }
         };
 
         source.connect(processor);
         processor.connect(audioContext.destination);
-        
-        console.log("[AI Detection] Audio processing started");
       } catch (err) {
         if (!isMounted) return;
         
         if (err instanceof DOMException && err.name === "NotAllowedError") {
-          console.error("[AI Detection] Microphone permission denied");
           setError("Microphone permission denied");
           setStatus("permission_denied");
         } else {
           const errorMessage = err instanceof Error ? err.message : "Failed to start audio processing";
-          console.error("[AI Detection] Audio processing error:", err);
           setError(errorMessage);
           setStatus("error");
         }
