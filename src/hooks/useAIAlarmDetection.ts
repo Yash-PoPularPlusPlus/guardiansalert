@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef } from "react";
 
 export type AIClassificationResult = {
   categoryName: string;
@@ -30,9 +30,9 @@ export const useAIAlarmDetection = ({ enabled }: UseAIAlarmDetectionProps) => {
   
   const audioContextRef = useRef<AudioContext | null>(null);
   const mediaStreamRef = useRef<MediaStream | null>(null);
-  const analyserRef = useRef<AnalyserNode | null>(null);
-  const animationFrameRef = useRef<number | null>(null);
+  const processorRef = useRef<ScriptProcessorNode | null>(null);
   const isProcessingRef = useRef(false);
+  const classifierRef = useRef<any>(null);
 
   // Initialize classifier
   useEffect(() => {
@@ -46,7 +46,9 @@ export const useAIAlarmDetection = ({ enabled }: UseAIAlarmDetectionProps) => {
         setStatus("initializing");
         setError(null);
 
-        // Dynamically import the module to handle the export issue
+        console.log("[AI Detection] Initializing classifier...");
+
+        // Dynamically import the module
         const tasksAudio = await import("@mediapipe/tasks-audio");
         
         // Check if FilesetResolver exists, otherwise create WasmFileset manually
@@ -72,11 +74,14 @@ export const useAIAlarmDetection = ({ enabled }: UseAIAlarmDetectionProps) => {
         });
 
         setClassifier(audioClassifier);
-        setStatus("idle");
-        console.log("AI Audio Classifier initialized successfully");
+        classifierRef.current = audioClassifier;
+        console.log("[AI Detection] Classifier initialized successfully");
+        
+        // Start audio processing immediately after initialization
+        startAudioProcessing(audioClassifier);
       } catch (err) {
         const errorMessage = err instanceof Error ? err.message : "Failed to initialize audio classifier";
-        console.error("AI Alarm Detection initialization error:", err);
+        console.error("[AI Detection] Initialization error:", err);
         setError(errorMessage);
         setStatus("error");
       }
@@ -85,117 +90,113 @@ export const useAIAlarmDetection = ({ enabled }: UseAIAlarmDetectionProps) => {
     initializeClassifier();
 
     return () => {
-      // Cleanup on unmount
-      if (animationFrameRef.current) {
-        cancelAnimationFrame(animationFrameRef.current);
-      }
+      stopAudioProcessing();
     };
   }, [enabled]);
 
-  // Start audio processing when classifier is ready
-  useEffect(() => {
-    if (!classifier || !enabled || status !== "idle") return;
-
-    const startAudioProcessing = async () => {
-      try {
-        // Request microphone access
-        const stream = await navigator.mediaDevices.getUserMedia({
-          audio: {
-            echoCancellation: false,
-            noiseSuppression: false,
-            autoGainControl: false,
-          },
-        });
-        mediaStreamRef.current = stream;
-
-        // Create audio context
-        const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
-        audioContextRef.current = audioContext;
-
-        // Create analyser node
-        const analyser = audioContext.createAnalyser();
-        analyser.fftSize = 2048;
-        analyserRef.current = analyser;
-
-        // Connect media stream to analyser
-        const source = audioContext.createMediaStreamSource(stream);
-        source.connect(analyser);
-
-        setStatus("detecting");
-        isProcessingRef.current = true;
-
-        // Start processing loop
-        processAudio();
-      } catch (err) {
-        if (err instanceof DOMException && err.name === "NotAllowedError") {
-          setError("Microphone permission denied");
-          setStatus("permission_denied");
-        } else {
-          const errorMessage = err instanceof Error ? err.message : "Failed to start audio processing";
-          setError(errorMessage);
-          setStatus("error");
-        }
-        console.error("Audio processing error:", err);
-      }
-    };
-
-    const processAudio = () => {
-      if (!isProcessingRef.current || !analyserRef.current || !classifier) {
-        return;
-      }
-
-      const analyser = analyserRef.current;
-      const bufferLength = analyser.fftSize;
-      const audioData = new Float32Array(bufferLength);
-      analyser.getFloatTimeDomainData(audioData);
-
-      try {
-        // Classify the audio data
-        const sampleRate = audioContextRef.current?.sampleRate || 48000;
-        const results = classifier.classify(audioData, sampleRate);
-
-        if (results && results.length > 0 && results[0].classifications?.length > 0) {
-          const topCategory = results[0].classifications[0].categories[0];
-          if (topCategory && topCategory.score > 0.1) {
-            setLastClassification({
-              categoryName: topCategory.categoryName,
-              score: topCategory.score,
-            });
-          }
-        }
-      } catch (classifyError) {
-        // Silently handle classification errors during streaming
-        console.debug("Classification error:", classifyError);
-      }
-
-      // Continue processing
-      animationFrameRef.current = requestAnimationFrame(processAudio);
-    };
-
-    startAudioProcessing();
-
-    return () => {
-      // Stop audio processing
-      isProcessingRef.current = false;
+  const startAudioProcessing = async (audioClassifier: any) => {
+    try {
+      console.log("[AI Detection] Requesting microphone access...");
       
-      if (animationFrameRef.current) {
-        cancelAnimationFrame(animationFrameRef.current);
-        animationFrameRef.current = null;
-      }
+      // Request microphone access
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          echoCancellation: false,
+          noiseSuppression: false,
+          autoGainControl: false,
+          sampleRate: 16000,
+        },
+      });
+      mediaStreamRef.current = stream;
+      console.log("[AI Detection] Microphone access granted");
 
-      if (mediaStreamRef.current) {
-        mediaStreamRef.current.getTracks().forEach(track => track.stop());
-        mediaStreamRef.current = null;
-      }
+      // Create audio context with 16kHz sample rate (YAMNet expects 16kHz)
+      const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)({
+        sampleRate: 16000,
+      });
+      audioContextRef.current = audioContext;
 
-      if (audioContextRef.current) {
-        audioContextRef.current.close();
-        audioContextRef.current = null;
-      }
+      // Create source and processor
+      const source = audioContext.createMediaStreamSource(stream);
+      
+      // Use ScriptProcessorNode for audio processing (4096 samples at 16kHz = ~256ms chunks)
+      const processor = audioContext.createScriptProcessor(4096, 1, 1);
+      processorRef.current = processor;
+      
+      isProcessingRef.current = true;
+      setStatus("idle");
 
-      analyserRef.current = null;
-    };
-  }, [classifier, enabled, status]);
+      processor.onaudioprocess = (event) => {
+        if (!isProcessingRef.current || !classifierRef.current) return;
+
+        const inputData = event.inputBuffer.getChannelData(0);
+        
+        // Create a copy of the audio data
+        const audioData = new Float32Array(inputData.length);
+        audioData.set(inputData);
+
+        try {
+          // Classify the audio data
+          const sampleRate = audioContext.sampleRate;
+          const results = classifierRef.current.classify(audioData, sampleRate);
+
+          if (results && results.length > 0 && results[0].classifications?.length > 0) {
+            const categories = results[0].classifications[0].categories;
+            if (categories && categories.length > 0) {
+              const topCategory = categories[0];
+              if (topCategory && topCategory.score > 0.05) {
+                console.log(`[AI Detection] Detected: ${topCategory.categoryName} (${Math.round(topCategory.score * 100)}%)`);
+                setLastClassification({
+                  categoryName: topCategory.categoryName,
+                  score: topCategory.score,
+                });
+              }
+            }
+          }
+        } catch (classifyError) {
+          // Silently handle classification errors during streaming
+          console.debug("[AI Detection] Classification error:", classifyError);
+        }
+      };
+
+      // Connect the audio graph
+      source.connect(processor);
+      processor.connect(audioContext.destination);
+      
+      console.log("[AI Detection] Audio processing started");
+    } catch (err) {
+      if (err instanceof DOMException && err.name === "NotAllowedError") {
+        console.error("[AI Detection] Microphone permission denied");
+        setError("Microphone permission denied");
+        setStatus("permission_denied");
+      } else {
+        const errorMessage = err instanceof Error ? err.message : "Failed to start audio processing";
+        console.error("[AI Detection] Audio processing error:", err);
+        setError(errorMessage);
+        setStatus("error");
+      }
+    }
+  };
+
+  const stopAudioProcessing = () => {
+    console.log("[AI Detection] Stopping audio processing...");
+    isProcessingRef.current = false;
+    
+    if (processorRef.current) {
+      processorRef.current.disconnect();
+      processorRef.current = null;
+    }
+
+    if (mediaStreamRef.current) {
+      mediaStreamRef.current.getTracks().forEach(track => track.stop());
+      mediaStreamRef.current = null;
+    }
+
+    if (audioContextRef.current) {
+      audioContextRef.current.close();
+      audioContextRef.current = null;
+    }
+  };
 
   return {
     status,
