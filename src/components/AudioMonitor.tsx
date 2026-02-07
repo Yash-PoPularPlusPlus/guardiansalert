@@ -14,6 +14,9 @@ export interface AudioMonitorHandle {
   resetCooldown: () => void;
 }
 
+// Internal state machine type
+type InternalStatus = "IDLE" | "DETECTING" | "CONFIRMED" | "COOLDOWN";
+
 // Comprehensive list of alarm-related sounds
 const ALARM_SOUNDS = [
   "Fire alarm",
@@ -35,40 +38,34 @@ const AudioMonitor = forwardRef<AudioMonitorHandle, AudioMonitorProps>(({
   onAIClassification,
   onFireAlarmConfirmed 
 }, ref) => {
+  // SINGLE SOURCE OF TRUTH - Internal state machine
+  const [internalStatus, setInternalStatus] = useState<InternalStatus>("IDLE");
+  
   // Refs for detection counters (stable across renders)
   const detectionCountRef = useRef(0);
   const missCountRef = useRef(0);
   
-  // State for UI updates
+  // State for UI updates only
   const [detectionCount, setDetectionCount] = useState(0);
   const [missCount, setMissCount] = useState(0);
-  const [isInCooldown, setIsInCooldown] = useState(false);
   const [cooldownRemaining, setCooldownRemaining] = useState(0);
-  const [showConfirmedAlert, setShowConfirmedAlert] = useState(false);
   
   // Refs for stable callback references
-  const onAlertTriggeredRef = useRef(onAlertTriggered);
   const onFireAlarmConfirmedRef = useRef(onFireAlarmConfirmed);
   const cooldownTimerRef = useRef<NodeJS.Timeout | null>(null);
   const cooldownIntervalRef = useRef<NodeJS.Timeout | null>(null);
   
   // Update refs on each render
-  onAlertTriggeredRef.current = onAlertTriggered;
   onFireAlarmConfirmedRef.current = onFireAlarmConfirmed;
 
   // Use the AI detection hook
   const { status: aiStatus, lastClassification, error: aiError } = useAIAlarmDetection({ enabled });
 
-  // Reset cooldown function
+  // Reset cooldown function - clears everything and returns to IDLE
   const resetCooldown = useCallback(() => {
-    setIsInCooldown(false);
-    setCooldownRemaining(0);
-    detectionCountRef.current = 0;
-    missCountRef.current = 0;
-    setDetectionCount(0);
-    setMissCount(0);
-    setShowConfirmedAlert(false);
+    console.log("[AudioMonitor] resetCooldown called - clearing all state");
     
+    // Clear timers
     if (cooldownTimerRef.current) {
       clearTimeout(cooldownTimerRef.current);
       cooldownTimerRef.current = null;
@@ -77,6 +74,14 @@ const AudioMonitor = forwardRef<AudioMonitorHandle, AudioMonitorProps>(({
       clearInterval(cooldownIntervalRef.current);
       cooldownIntervalRef.current = null;
     }
+    
+    // Reset all state
+    setInternalStatus("IDLE");
+    setCooldownRemaining(0);
+    detectionCountRef.current = 0;
+    missCountRef.current = 0;
+    setDetectionCount(0);
+    setMissCount(0);
   }, []);
 
   // Expose resetCooldown to parent via ref
@@ -84,9 +89,11 @@ const AudioMonitor = forwardRef<AudioMonitorHandle, AudioMonitorProps>(({
     resetCooldown
   }), [resetCooldown]);
 
-  // Start cooldown period
+  // Start cooldown period - self-contained timer management
   const startCooldown = useCallback(() => {
-    setIsInCooldown(true);
+    console.log("[AudioMonitor] Starting cooldown for", COOLDOWN_DURATION_MS, "ms");
+    
+    // Set initial cooldown time
     setCooldownRemaining(COOLDOWN_DURATION_MS);
     
     // Update countdown every second
@@ -97,21 +104,42 @@ const AudioMonitor = forwardRef<AudioMonitorHandle, AudioMonitorProps>(({
       });
     }, 1000);
     
-    // End cooldown after duration
+    // End cooldown after duration - automatically return to IDLE
     cooldownTimerRef.current = setTimeout(() => {
-      resetCooldown();
+      console.log("[AudioMonitor] Cooldown complete - returning to IDLE");
+      
+      // Clear interval
+      if (cooldownIntervalRef.current) {
+        clearInterval(cooldownIntervalRef.current);
+        cooldownIntervalRef.current = null;
+      }
+      
+      // Reset detection state
+      detectionCountRef.current = 0;
+      missCountRef.current = 0;
+      setDetectionCount(0);
+      setMissCount(0);
+      
+      // Return to IDLE
+      setInternalStatus("IDLE");
     }, COOLDOWN_DURATION_MS);
-  }, [resetCooldown]);
+  }, []);
 
-  // Monitor AI classification results - Core detection logic
+  // Core detection logic - ONLY runs when NOT in COOLDOWN
   useEffect(() => {
-    // Always forward classification to parent for display
+    // Always forward classification to parent for display (regardless of internal state)
     if (lastClassification && onAIClassification) {
       onAIClassification(lastClassification, aiStatus);
     }
 
-    // Skip processing if no classification or in cooldown
-    if (!lastClassification || isInCooldown) {
+    // CRITICAL: Skip ALL processing if in COOLDOWN state
+    if (internalStatus === "COOLDOWN") {
+      console.log("[AudioMonitor] In COOLDOWN - ignoring all audio classification");
+      return;
+    }
+
+    // Skip if no classification available
+    if (!lastClassification) {
       return;
     }
 
@@ -132,6 +160,7 @@ const AudioMonitor = forwardRef<AudioMonitorHandle, AudioMonitorProps>(({
       // Update state for UI
       setDetectionCount(detectionCountRef.current);
       setMissCount(0);
+      setInternalStatus("DETECTING");
       
       console.log(`[DETECTED] Sound: ${detectedCategory}, Confidence: ${confidence}, Confirmations: ${detectionCountRef.current}`);
       
@@ -139,22 +168,22 @@ const AudioMonitor = forwardRef<AudioMonitorHandle, AudioMonitorProps>(({
       if (detectionCountRef.current >= CONFIRMATION_THRESHOLD) {
         console.log("[CONFIRMED] Threshold reached! Triggering alert!");
         
-        // Trigger the alert
-        setShowConfirmedAlert(true);
-        onAlertTriggeredRef.current("fire");
+        // 1. Set status to CONFIRMED briefly
+        setInternalStatus("CONFIRMED");
+        
+        // 2. Trigger the alert callback ONCE
+        onAlertTriggered("fire");
         onFireAlarmConfirmedRef.current?.();
         
-        // Reset counters
+        // 3. Reset detection counters
         detectionCountRef.current = 0;
         missCountRef.current = 0;
         setDetectionCount(0);
         setMissCount(0);
         
-        // Start cooldown immediately
+        // 4. Immediately transition to COOLDOWN
+        setInternalStatus("COOLDOWN");
         startCooldown();
-        
-        // Hide confirmed alert after a brief display
-        setTimeout(() => setShowConfirmedAlert(false), 3000);
       }
     } else if (detectionCountRef.current > 0) {
       // Non-alarm sound detected while tracking potential alarm
@@ -170,10 +199,15 @@ const AudioMonitor = forwardRef<AudioMonitorHandle, AudioMonitorProps>(({
         missCountRef.current = 0;
         setDetectionCount(0);
         setMissCount(0);
+        setInternalStatus("IDLE");
+      }
+    } else {
+      // No active detection and not an alarm sound - stay IDLE
+      if (internalStatus !== "IDLE") {
+        setInternalStatus("IDLE");
       }
     }
-    // If detectionCountRef.current === 0 and not an alarm sound, do nothing
-  }, [lastClassification, aiStatus, isInCooldown, onAIClassification, startCooldown]);
+  }, [lastClassification, aiStatus, internalStatus, onAIClassification, onAlertTriggered, startCooldown]);
 
   // Show error toast if there's an AI error
   useEffect(() => {
@@ -200,98 +234,112 @@ const AudioMonitor = forwardRef<AudioMonitorHandle, AudioMonitorProps>(({
     };
   }, []);
 
-  // Determine display state
-  const isDetecting = detectionCount > 0;
-  const isReEvaluating = isDetecting && missCount > 0;
+  // Determine display values
   const progress = Math.min(100, (detectionCount / CONFIRMATION_THRESHOLD) * 100);
   const cooldownSeconds = Math.ceil(cooldownRemaining / 1000);
 
-  // Get status icon and text
+  // Get status icon and text based on internalStatus
   const getStatusDisplay = () => {
-    if (showConfirmedAlert) {
-      return { 
-        icon: <Flame className="w-5 h-5 animate-pulse" />, 
-        text: "🚨 Fire Alarm Detected!",
-        subtext: "Alert triggered"
-      };
-    }
-    if (isInCooldown) {
-      return { 
-        icon: <Clock className="w-5 h-5" />, 
-        text: `Cooldown: ${cooldownSeconds}s`,
-        subtext: "Resuming monitoring soon"
-      };
-    }
-    if (isReEvaluating) {
-      return { 
-        icon: <Flame className="w-5 h-5 animate-pulse opacity-70" />, 
-        text: `Re-evaluating... (${missCount}/${MAX_MISSES})`,
-        subtext: `${detectionCount}/${CONFIRMATION_THRESHOLD} confirmations`
-      };
-    }
-    if (isDetecting && lastClassification) {
-      return { 
-        icon: <Flame className="w-5 h-5 animate-pulse" />, 
-        text: `Analyzing: ${lastClassification.categoryName} (${Math.round(lastClassification.score * 100)}%)`,
-        subtext: `${detectionCount}/${CONFIRMATION_THRESHOLD} confirmations`
-      };
-    }
-    switch (aiStatus) {
-      case "initializing":
+    switch (internalStatus) {
+      case "CONFIRMED":
         return { 
-          icon: <Loader2 className="w-5 h-5 animate-spin" />, 
-          text: "AI Initializing...",
-          subtext: "Loading model"
+          icon: <Flame className="w-5 h-5 animate-pulse" />, 
+          text: "🚨 Fire Alarm Detected!",
+          subtext: "Alert triggered"
         };
-      case "idle":
+      case "COOLDOWN":
         return { 
-          icon: (
-            <div className="relative">
-              <Brain className="w-5 h-5" />
-              <span className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-accent rounded-full animate-pulse" />
-            </div>
-          ), 
-          text: "AI Listening...",
-          subtext: lastClassification ? `${lastClassification.categoryName} (${Math.round(lastClassification.score * 100)}%)` : "Monitoring for emergencies"
+          icon: <Clock className="w-5 h-5" />, 
+          text: `Cooldown: ${cooldownSeconds}s`,
+          subtext: "Resuming monitoring soon"
         };
-      case "detecting":
+      case "DETECTING":
+        if (missCount > 0) {
+          return { 
+            icon: <Flame className="w-5 h-5 animate-pulse opacity-70" />, 
+            text: `Re-evaluating... (${missCount}/${MAX_MISSES})`,
+            subtext: `${detectionCount}/${CONFIRMATION_THRESHOLD} confirmations`
+          };
+        }
         return { 
-          icon: <Mic className="w-5 h-5" />, 
-          text: "Processing...",
-          subtext: "Analyzing audio"
+          icon: <Flame className="w-5 h-5 animate-pulse" />, 
+          text: lastClassification 
+            ? `Analyzing: ${lastClassification.categoryName} (${Math.round(lastClassification.score * 100)}%)`
+            : "Analyzing...",
+          subtext: `${detectionCount}/${CONFIRMATION_THRESHOLD} confirmations`
         };
-      case "error":
-        return { 
-          icon: <AlertCircle className="w-5 h-5" />, 
-          text: "AI Error",
-          subtext: aiError || "Check console"
-        };
-      case "permission_denied":
-        return { 
-          icon: <MicOff className="w-5 h-5" />, 
-          text: "Mic Denied",
-          subtext: "Enable microphone access"
-        };
+      case "IDLE":
       default:
-        return { 
-          icon: <MicOff className="w-5 h-5" />, 
-          text: "Paused",
-          subtext: "Monitoring disabled"
-        };
+        // Show AI status when idle
+        switch (aiStatus) {
+          case "initializing":
+            return { 
+              icon: <Loader2 className="w-5 h-5 animate-spin" />, 
+              text: "AI Initializing...",
+              subtext: "Loading model"
+            };
+          case "idle":
+            return { 
+              icon: (
+                <div className="relative">
+                  <Brain className="w-5 h-5" />
+                  <span className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-accent rounded-full animate-pulse" />
+                </div>
+              ), 
+              text: "AI Listening...",
+              subtext: lastClassification ? `${lastClassification.categoryName} (${Math.round(lastClassification.score * 100)}%)` : "Monitoring for emergencies"
+            };
+          case "detecting":
+            return { 
+              icon: <Mic className="w-5 h-5" />, 
+              text: "Processing...",
+              subtext: "Analyzing audio"
+            };
+          case "error":
+            return { 
+              icon: <AlertCircle className="w-5 h-5" />, 
+              text: "AI Error",
+              subtext: aiError || "Check console"
+            };
+          case "permission_denied":
+            return { 
+              icon: <MicOff className="w-5 h-5" />, 
+              text: "Mic Denied",
+              subtext: "Enable microphone access"
+            };
+          default:
+            return { 
+              icon: <MicOff className="w-5 h-5" />, 
+              text: "Paused",
+              subtext: "Monitoring disabled"
+            };
+        }
     }
   };
 
   const statusDisplay = getStatusDisplay();
 
-  // Determine background color based on state
+  // Determine background color based on internalStatus
   const getBackgroundClass = () => {
-    if (showConfirmedAlert) return "bg-destructive text-destructive-foreground";
-    if (isInCooldown) return "bg-muted text-muted-foreground";
-    if (isReEvaluating) return "bg-amber-600/70 text-white";
-    if (isDetecting) return "bg-amber-500/90 text-white";
-    if (aiStatus === "error" || aiStatus === "permission_denied") return "bg-destructive/80 text-destructive-foreground";
-    if (aiStatus === "initializing") return "bg-primary/90 text-primary-foreground";
-    return "bg-background/70 text-foreground";
+    switch (internalStatus) {
+      case "CONFIRMED":
+        return "bg-destructive text-destructive-foreground";
+      case "COOLDOWN":
+        return "bg-muted text-muted-foreground";
+      case "DETECTING":
+        return missCount > 0 
+          ? "bg-amber-600/70 text-white" 
+          : "bg-amber-500/90 text-white";
+      case "IDLE":
+      default:
+        if (aiStatus === "error" || aiStatus === "permission_denied") {
+          return "bg-destructive/80 text-destructive-foreground";
+        }
+        if (aiStatus === "initializing") {
+          return "bg-primary/90 text-primary-foreground";
+        }
+        return "bg-background/70 text-foreground";
+    }
   };
 
   return (
@@ -317,7 +365,7 @@ const AudioMonitor = forwardRef<AudioMonitorHandle, AudioMonitorProps>(({
         )}
 
         {/* Detection progress bar */}
-        {isDetecting && !showConfirmedAlert && (
+        {internalStatus === "DETECTING" && (
           <div className="w-full bg-white/20 rounded-full h-1.5 mt-1">
             <div 
               className="bg-white h-1.5 rounded-full transition-all duration-200"
@@ -327,7 +375,7 @@ const AudioMonitor = forwardRef<AudioMonitorHandle, AudioMonitorProps>(({
         )}
 
         {/* Cooldown progress bar */}
-        {isInCooldown && (
+        {internalStatus === "COOLDOWN" && (
           <div className="w-full bg-white/20 rounded-full h-1.5 mt-1">
             <div 
               className="bg-primary h-1.5 rounded-full transition-all duration-1000"
@@ -337,7 +385,7 @@ const AudioMonitor = forwardRef<AudioMonitorHandle, AudioMonitorProps>(({
         )}
 
         {/* Active indicator when idle */}
-        {aiStatus === "idle" && !isDetecting && !isInCooldown && (
+        {internalStatus === "IDLE" && aiStatus === "idle" && (
           <div className="flex items-center gap-1.5 text-[10px] opacity-60">
             <Shield className="w-3 h-3" />
             <span>AI Active</span>
