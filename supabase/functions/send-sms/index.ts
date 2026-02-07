@@ -90,50 +90,64 @@ serve(async (req) => {
     let voiceCallResult: { success: boolean; error?: string } | undefined;
 
     if (makeVoiceCall && voiceCallTo) {
-      console.log('[VoiceCall] Initiating voice call to:', voiceCallTo);
-      
+      const twilioCallUrl = `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Calls.json`;
+      const twiml = `<Response><Say voice="alice">This is an automated emergency call from Guardian Alert. A fire has been detected. Please send help to the user's location.</Say></Response>`;
+
+      const callParams = new URLSearchParams({
+        To: voiceCallTo,
+        From: twilioPhoneNumber,
+        Twiml: twiml,
+      });
+
+      // CRITICAL: Log URL and parameters before fetch
+      console.log('[VoiceCall] Request:', {
+        url: twilioCallUrl,
+        To: voiceCallTo,
+        From: twilioPhoneNumber,
+        TwimlLength: twiml.length,
+        timestamp: new Date().toISOString(),
+      });
+
       try {
-        const twilioCallUrl = `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Calls.json`;
         const auth = btoa(`${accountSid}:${authToken}`);
-
-        const lat = latitude || 'unknown';
-        const lon = longitude || 'unknown';
-
-        const twiml = `<Response><Say voice="alice" language="en-US">This is an automated emergency call from Guardian Alert. A fire emergency has been detected. The user cannot speak. Their location is latitude ${lat}, longitude ${lon}. Please send help immediately.</Say><Pause length="2"/><Say voice="alice" language="en-US">Repeating. This is an automated emergency call. A fire has been detected. The user cannot speak. Please send help.</Say></Response>`;
-
-        const callFormData = new URLSearchParams();
-        callFormData.append('To', voiceCallTo);
-        callFormData.append('From', twilioPhoneNumber);
-        callFormData.append('Twiml', twiml);
-
+        
         const callResponse = await fetch(twilioCallUrl, {
           method: 'POST',
           headers: {
-            'Authorization': `Basic ${auth}`,
             'Content-Type': 'application/x-www-form-urlencoded',
+            'Authorization': `Basic ${auth}`,
           },
-          body: callFormData.toString(),
+          body: callParams.toString(),
         });
 
         const callData = await callResponse.json();
-        console.log('[VoiceCall] Twilio response:', callData);
+
+        // CRITICAL: Log status and message from Twilio's response
+        console.log('[VoiceCall] Response:', {
+          httpStatus: callResponse.status,
+          status: callData.status,
+          message: callData.message,
+          code: callData.code,
+          sid: callData.sid,
+          timestamp: new Date().toISOString(),
+        });
 
         if (callResponse.ok) {
           voiceCallResult = { success: true };
-          console.log('[VoiceCall] Call initiated successfully');
+          console.log('[VoiceCall] Call initiated successfully, SID:', callData.sid);
         } else {
           voiceCallResult = { 
             success: false, 
-            error: callData.message || 'Failed to initiate voice call' 
+            error: `${callData.message} (Code: ${callData.code})` 
           };
-          console.error('[VoiceCall] Failed:', callData);
+          console.error('[VoiceCall] Failed:', callData.message, 'Code:', callData.code);
         }
       } catch (error) {
+        console.error('[VoiceCall] Exception:', error);
         voiceCallResult = { 
           success: false, 
           error: error instanceof Error ? error.message : 'Unknown error' 
         };
-        console.error('[VoiceCall] Exception:', error);
       }
     }
 
