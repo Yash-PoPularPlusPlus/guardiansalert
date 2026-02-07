@@ -28,7 +28,7 @@ const ALARM_SOUNDS = [
 const CONFIDENCE_THRESHOLD = 0.3;
 const CONFIRMATION_THRESHOLD = 3;
 const MAX_MISSES = 4;
-const COOLDOWN_DURATION_MS = 30000;
+const COOLDOWN_DURATION_MS = 20000;
 
 const AudioMonitor = forwardRef<AudioMonitorHandle, AudioMonitorProps>(({ 
   onAIClassification,
