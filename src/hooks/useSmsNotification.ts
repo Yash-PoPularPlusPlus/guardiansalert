@@ -2,6 +2,7 @@ import { useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import type { EmergencyType } from "./usePersonalizedAlert";
+import { getDisabilities } from "./usePersonalizedAlert";
 
 export interface Contact {
   name: string;
@@ -36,20 +37,30 @@ export const getUserName = (): string => {
   return "Someone";
 };
 
-const getCurrentLocation = (): Promise<string> => {
+interface LocationData {
+  url: string;
+  latitude: string | null;
+  longitude: string | null;
+}
+
+const getCurrentLocationWithCoords = (): Promise<LocationData> => {
   return new Promise((resolve) => {
     if (!navigator.geolocation) {
-      resolve("Location unavailable");
+      resolve({ url: "Location unavailable", latitude: null, longitude: null });
       return;
     }
 
     navigator.geolocation.getCurrentPosition(
       (position) => {
         const { latitude, longitude } = position.coords;
-        resolve(`https://maps.google.com/?q=${latitude},${longitude}`);
+        resolve({
+          url: `https://maps.google.com/?q=${latitude},${longitude}`,
+          latitude: String(latitude),
+          longitude: String(longitude),
+        });
       },
       () => {
-        resolve("Location unavailable");
+        resolve({ url: "Location unavailable", latitude: null, longitude: null });
       },
       { timeout: 5000, maximumAge: 60000 }
     );
@@ -113,17 +124,31 @@ export const useSmsNotification = () => {
     setSmsSentForCurrentAlert(true);
 
     try {
-      const locationUrl = await getCurrentLocation();
+      const locationData = await getCurrentLocationWithCoords();
       const userName = getUserName();
 
-      // Twilio credentials are now server-side - just send the data
+      // Check if user is nonverbal for voice call
+      const isNonverbal = getDisabilities().includes("nonverbal");
+
+      // Build request body
+      const requestBody: Record<string, unknown> = {
+        contacts,
+        userName,
+        emergencyType,
+        locationUrl: locationData.url,
+      };
+
+      // Add voice call fields for nonverbal users
+      if (isNonverbal && contacts.length > 0) {
+        requestBody.makeVoiceCall = true;
+        requestBody.voiceCallTo = contacts[0].phone;
+        requestBody.latitude = locationData.latitude;
+        requestBody.longitude = locationData.longitude;
+        console.log("[SMS] Nonverbal user detected, adding voice call to:", contacts[0].phone);
+      }
+
       const { data, error } = await supabase.functions.invoke("send-sms", {
-        body: {
-          contacts,
-          userName,
-          emergencyType,
-          locationUrl,
-        },
+        body: requestBody,
       });
 
       if (error) {
@@ -141,6 +166,15 @@ export const useSmsNotification = () => {
           title: "Emergency contacts notified ✓",
           description: `SMS sent to ${contacts.length} contact(s)`,
         });
+
+        // Show voice call toast if successful
+        if (data?.voiceCall?.success && contacts.length > 0) {
+          toast({
+            title: "Emergency call placed ✓",
+            description: `Calling ${contacts[0].name}`,
+          });
+        }
+
         return { success: true };
       } else if (data?.partial) {
         setLastSmsSentTime();
