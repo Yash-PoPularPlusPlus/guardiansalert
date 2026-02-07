@@ -158,28 +158,22 @@ export const useSmsNotification = () => {
       if (data?.success) {
         setLastSmsSentTime();
         
-        // Show appropriate toasts based on what was sent
+        // Toast 1: SMS notification
         if (!smsDisabled) {
           toast({
-            title: "📱 SMS alerts sent ✓",
-            description: `Notified ${contacts.length} emergency contact(s)`,
+            title: "📱 Emergency contacts notified ✓",
+            description: `SMS sent to ${contacts.length} contact(s)`,
           });
         }
 
-        // Show voice call toast if successful
-        if (data?.voiceCall?.success && !voiceCallDisabled) {
-          toast({
-            title: "📞 Emergency call to 911 placed ✓",
-            description: `Calling ${contacts[0].name} for assistance`,
-          });
-        } else if (voiceCallDisabled) {
-          // No voice call toast when disabled
-        } else if (smsDisabled && !voiceCallDisabled) {
-          // Only voice call was made
-          toast({
-            title: "📞 Emergency call placed ✓",
-            description: `Calling ${contacts[0].name}`,
-          });
+        // Toast 2: 911 / Emergency services notification
+        if (!voiceCallDisabled) {
+          setTimeout(() => {
+            toast({
+              title: "🚨 911 notified ✓",
+              description: "Emergency services have been alerted",
+            });
+          }, 800);
         }
 
         return { success: true };
