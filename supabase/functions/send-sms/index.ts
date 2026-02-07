@@ -28,9 +28,17 @@ serve(async (req) => {
   }
 
   try {
-    const accountSid = Deno.env.get('TWILIO_ACCOUNT_SID') || 'AC8b07d946464dab4a039b6a4f74d5a007';
-    const authToken = Deno.env.get('TWILIO_AUTH_TOKEN') || '55a49d79c65c818701e35b839500bf6c';
-    const twilioPhoneNumber = Deno.env.get('TWILIO_PHONE_NUMBER') || '+13292150255';
+    const accountSid = Deno.env.get('TWILIO_ACCOUNT_SID');
+    const authToken = Deno.env.get('TWILIO_AUTH_TOKEN');
+    const twilioPhoneNumber = Deno.env.get('TWILIO_PHONE_NUMBER');
+
+    if (!accountSid || !authToken || !twilioPhoneNumber) {
+      console.error('[SMS] Missing Twilio credentials in secrets');
+      return new Response(
+        JSON.stringify({ success: false, error: 'Twilio credentials not configured' }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
 
     const { contacts, userName, emergencyType, locationUrl, isTest, makeVoiceCall, voiceCallTo, latitude, longitude }: SMSRequest = await req.json();
 
@@ -43,12 +51,47 @@ serve(async (req) => {
 
     const results: { phone: string; success: boolean; error?: string }[] = [];
 
-    // Skip SMS sending to preserve Twilio quota
-    // Just log that we would have sent SMS
+    // Send SMS to emergency contacts
     const contactsToNotify = isTest ? [contacts[0]] : contacts;
+    const twilioSmsUrl = `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages.json`;
+    const auth = btoa(`${accountSid}:${authToken}`);
+
     for (const contact of contactsToNotify) {
-      console.log('[SMS] Skipped (quota preservation):', contact.phone);
-      results.push({ phone: contact.phone, success: true });
+      try {
+        const messageBody = isTest
+          ? `[TEST] Guardian Alert: This is a test message from ${userName}.`
+          : `🚨 EMERGENCY: ${userName} needs help! A ${emergencyType} has been detected. Location: ${locationUrl}`;
+
+        const smsParams = new URLSearchParams({
+          To: contact.phone,
+          From: twilioPhoneNumber,
+          Body: messageBody,
+        });
+
+        console.log('[SMS] Sending to:', contact.phone);
+
+        const smsResponse = await fetch(twilioSmsUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'Authorization': `Basic ${auth}`,
+          },
+          body: smsParams.toString(),
+        });
+
+        const smsData = await smsResponse.json();
+
+        if (smsResponse.ok) {
+          console.log('[SMS] Sent successfully, SID:', smsData.sid);
+          results.push({ phone: contact.phone, success: true });
+        } else {
+          console.error('[SMS] Failed:', smsData.message, 'Code:', smsData.code);
+          results.push({ phone: contact.phone, success: false, error: smsData.message });
+        }
+      } catch (error) {
+        console.error('[SMS] Exception for', contact.phone, ':', error);
+        results.push({ phone: contact.phone, success: false, error: error instanceof Error ? error.message : 'Unknown error' });
+      }
     }
 
     // Voice call logic for nonverbal users
@@ -74,8 +117,6 @@ serve(async (req) => {
       });
 
       try {
-        const auth = btoa(`${accountSid}:${authToken}`);
-        
         const callResponse = await fetch(twilioCallUrl, {
           method: 'POST',
           headers: {
