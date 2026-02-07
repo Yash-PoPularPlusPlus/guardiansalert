@@ -33,6 +33,7 @@ const FIRE_ALARM_CATEGORIES = [
 const CONFIDENCE_THRESHOLD = 0.6;
 const REQUIRED_CONSECUTIVE_DETECTIONS = 4;
 const COOLDOWN_DURATION_MS = 30000; // 30 seconds cooldown
+const MAX_MISSES = 3; // Allow up to 3 non-alarm classifications before resetting
 
 const AudioMonitor = forwardRef<AudioMonitorHandle, AudioMonitorProps>(({ 
   enabled, 
@@ -41,6 +42,7 @@ const AudioMonitor = forwardRef<AudioMonitorHandle, AudioMonitorProps>(({
   onFireAlarmConfirmed 
 }, ref) => {
   const [consecutiveDetections, setConsecutiveDetections] = useState(0);
+  const [missCount, setMissCount] = useState(0);
   const [isInCooldown, setIsInCooldown] = useState(false);
   const [cooldownRemaining, setCooldownRemaining] = useState(0);
   const [showConfirmedAlert, setShowConfirmedAlert] = useState(false);
@@ -63,6 +65,7 @@ const AudioMonitor = forwardRef<AudioMonitorHandle, AudioMonitorProps>(({
     setIsInCooldown(false);
     setCooldownRemaining(0);
     setConsecutiveDetections(0);
+    setMissCount(0);
     setShowConfirmedAlert(false);
     
     if (cooldownTimerRef.current) {
@@ -120,6 +123,8 @@ const AudioMonitor = forwardRef<AudioMonitorHandle, AudioMonitorProps>(({
     const meetsConfidenceThreshold = lastClassification.score >= CONFIDENCE_THRESHOLD;
 
     if (isFireAlarmCategory && meetsConfidenceThreshold) {
+      // Fire alarm detected - increment count and reset misses
+      setMissCount(0);
       setConsecutiveDetections(prev => {
         const newCount = prev + 1;
         
@@ -141,11 +146,22 @@ const AudioMonitor = forwardRef<AudioMonitorHandle, AudioMonitorProps>(({
         
         return newCount;
       });
-    } else {
-      // Reset consecutive count if not a fire alarm category
-      setConsecutiveDetections(0);
+    } else if (consecutiveDetections > 0) {
+      // Non-fire alarm sound detected while tracking potential alarm
+      setMissCount(prev => {
+        const newMissCount = prev + 1;
+        
+        // Only reset if we exceed the miss tolerance
+        if (newMissCount > MAX_MISSES) {
+          setConsecutiveDetections(0);
+          return 0;
+        }
+        
+        return newMissCount;
+      });
     }
-  }, [lastClassification, aiStatus, isInCooldown, onAIClassification, startCooldown]);
+    // If consecutiveDetections === 0 and not a fire alarm, do nothing
+  }, [lastClassification, aiStatus, isInCooldown, consecutiveDetections, onAIClassification, startCooldown]);
 
   // Show error toast if there's an AI error
   useEffect(() => {
@@ -174,6 +190,7 @@ const AudioMonitor = forwardRef<AudioMonitorHandle, AudioMonitorProps>(({
 
   // Determine display state
   const isDetecting = consecutiveDetections > 0;
+  const isReEvaluating = isDetecting && missCount > 0;
   const progress = Math.min(100, (consecutiveDetections / REQUIRED_CONSECUTIVE_DETECTIONS) * 100);
   const cooldownSeconds = Math.ceil(cooldownRemaining / 1000);
 
@@ -191,6 +208,13 @@ const AudioMonitor = forwardRef<AudioMonitorHandle, AudioMonitorProps>(({
         icon: <Clock className="w-5 h-5" />, 
         text: "Cooldown Active",
         subtext: `Resuming in ${cooldownSeconds}s`
+      };
+    }
+    if (isReEvaluating) {
+      return { 
+        icon: <Flame className="w-5 h-5 animate-pulse opacity-70" />, 
+        text: `Re-evaluating: ${consecutiveDetections}/${REQUIRED_CONSECUTIVE_DETECTIONS}`,
+        subtext: `Brief pause (${missCount}/${MAX_MISSES} misses)`
       };
     }
     if (isDetecting) {
@@ -212,7 +236,7 @@ const AudioMonitor = forwardRef<AudioMonitorHandle, AudioMonitorProps>(({
           icon: (
             <div className="relative">
               <Brain className="w-5 h-5" />
-              <span className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-green-400 rounded-full animate-pulse" />
+              <span className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-accent rounded-full animate-pulse" />
             </div>
           ), 
           text: "AI Listening...",
@@ -251,10 +275,11 @@ const AudioMonitor = forwardRef<AudioMonitorHandle, AudioMonitorProps>(({
   const getBackgroundClass = () => {
     if (showConfirmedAlert) return "bg-destructive text-destructive-foreground";
     if (isInCooldown) return "bg-muted text-muted-foreground";
+    if (isReEvaluating) return "bg-amber-600/70 text-white";
     if (isDetecting) return "bg-amber-500/90 text-white";
     if (aiStatus === "error" || aiStatus === "permission_denied") return "bg-destructive/80 text-destructive-foreground";
-    if (aiStatus === "initializing") return "bg-blue-600/90 text-white";
-    return "bg-black/70 text-white";
+    if (aiStatus === "initializing") return "bg-primary/90 text-primary-foreground";
+    return "bg-background/70 text-foreground";
   };
 
   return (
