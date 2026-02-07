@@ -4,8 +4,6 @@ import { useAIAlarmDetection, AIClassificationResult, AIDetectionStatus } from "
 import { toast } from "@/hooks/use-toast";
 
 interface AudioMonitorProps {
-  // REMOVED: enabled prop - component is now self-managing
-  onAlertTriggered: (type: "fire") => void;
   onAIClassification?: (result: AIClassificationResult, status: AIDetectionStatus) => void;
   onFireAlarmConfirmed?: () => void;
 }
@@ -33,7 +31,6 @@ const MAX_MISSES = 4;
 const COOLDOWN_DURATION_MS = 30000;
 
 const AudioMonitor = forwardRef<AudioMonitorHandle, AudioMonitorProps>(({ 
-  onAlertTriggered,
   onAIClassification,
   onFireAlarmConfirmed 
 }, ref) => {
@@ -48,6 +45,9 @@ const AudioMonitor = forwardRef<AudioMonitorHandle, AudioMonitorProps>(({
   const [detectionCount, setDetectionCount] = useState(0);
   const [missCount, setMissCount] = useState(0);
   const [cooldownRemaining, setCooldownRemaining] = useState(0);
+  
+  // Ref to track the last processed classification to avoid reprocessing stale data
+  const lastProcessedClassificationRef = useRef<AIClassificationResult>(null);
   
   // Refs for stable callback references
   const onFireAlarmConfirmedRef = useRef(onFireAlarmConfirmed);
@@ -138,7 +138,6 @@ const AudioMonitor = forwardRef<AudioMonitorHandle, AudioMonitorProps>(({
 
     // CRITICAL: Skip ALL processing if in COOLDOWN state
     if (internalStatus === "COOLDOWN") {
-      console.log("[AudioMonitor] In COOLDOWN - ignoring all audio classification");
       return;
     }
 
@@ -146,6 +145,14 @@ const AudioMonitor = forwardRef<AudioMonitorHandle, AudioMonitorProps>(({
     if (!lastClassification) {
       return;
     }
+
+    // CRITICAL: Skip if this is the same classification we already processed
+    // This prevents re-triggering when status changes (e.g., COOLDOWN -> IDLE)
+    // but lastClassification hasn't actually changed
+    if (lastClassification === lastProcessedClassificationRef.current) {
+      return;
+    }
+    lastProcessedClassificationRef.current = lastClassification;
 
     const detectedCategory = lastClassification.categoryName;
     const confidence = lastClassification.score;
@@ -172,17 +179,16 @@ const AudioMonitor = forwardRef<AudioMonitorHandle, AudioMonitorProps>(({
       if (detectionCountRef.current >= CONFIRMATION_THRESHOLD) {
         console.log("[CONFIRMED] Threshold reached! Triggering alert and entering COOLDOWN!");
         
-        // 1. Trigger the alert callbacks ONCE
-        onAlertTriggered("fire");
+        // Trigger the alert callback ONCE (single callback, no duplicates)
         onFireAlarmConfirmedRef.current?.();
         
-        // 2. Reset detection counters
+        // Reset detection counters
         detectionCountRef.current = 0;
         missCountRef.current = 0;
         setDetectionCount(0);
         setMissCount(0);
         
-        // 3. Immediately transition to COOLDOWN
+        // Immediately transition to COOLDOWN
         setInternalStatus("COOLDOWN");
         startCooldown();
       }
@@ -202,13 +208,8 @@ const AudioMonitor = forwardRef<AudioMonitorHandle, AudioMonitorProps>(({
         setMissCount(0);
         setInternalStatus("IDLE");
       }
-    } else {
-      // No active detection and not an alarm sound - stay IDLE
-      if (internalStatus !== "IDLE") {
-        setInternalStatus("IDLE");
-      }
     }
-  }, [lastClassification, aiStatus, internalStatus, onAIClassification, onAlertTriggered, startCooldown]);
+  }, [lastClassification, aiStatus, internalStatus, onAIClassification, startCooldown]);
 
   // Show error toast if there's an AI error
   useEffect(() => {

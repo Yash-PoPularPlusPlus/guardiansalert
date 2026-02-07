@@ -148,8 +148,8 @@ const Home = () => {
   const handleDismissAlert = () => {
     dismissAlert();
     resetSmsFlag();
-    // Tell AudioMonitor to clear cooldown and return to IDLE
-    audioMonitorRef.current?.reset();
+    // DO NOT call reset() - let AudioMonitor's cooldown finish naturally
+    // This prevents the infinite loop: reset -> IDLE -> re-detect -> re-trigger
     toast.success("Marked as safe – Monitoring resumed");
   };
 
@@ -212,7 +212,6 @@ const Home = () => {
       {renderAlert()}
       <AudioMonitor 
         ref={audioMonitorRef}
-        onAlertTriggered={handleAutoDetectedAlert}
         onAIClassification={(result, status) => {
           setAiClassification(result);
           setAiStatus(status);
