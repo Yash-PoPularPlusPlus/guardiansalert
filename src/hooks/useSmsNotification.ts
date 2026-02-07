@@ -2,7 +2,6 @@ import { useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import type { EmergencyType } from "./usePersonalizedAlert";
-import { getDisabilities } from "./usePersonalizedAlert";
 
 export interface Contact {
   name: string;
@@ -127,25 +126,19 @@ export const useSmsNotification = () => {
       const locationData = await getCurrentLocationWithCoords();
       const userName = getUserName();
 
-      // Check if user is nonverbal for voice call
-      const isNonverbal = getDisabilities().includes("nonverbal");
-
-      // Build request body
+      // Always trigger voice call to first contact
       const requestBody: Record<string, unknown> = {
         contacts,
         userName,
         emergencyType,
         locationUrl: locationData.url,
+        makeVoiceCall: true,
+        voiceCallTo: contacts[0].phone,
+        latitude: locationData.latitude,
+        longitude: locationData.longitude,
       };
 
-      // Add voice call fields for nonverbal users
-      if (isNonverbal && contacts.length > 0) {
-        requestBody.makeVoiceCall = true;
-        requestBody.voiceCallTo = contacts[0].phone;
-        requestBody.latitude = locationData.latitude;
-        requestBody.longitude = locationData.longitude;
-        console.log("[SMS] Nonverbal user detected, adding voice call to:", contacts[0].phone);
-      }
+      console.log("[SMS] Sending emergency request with voice call to:", contacts[0].phone);
 
       const { data, error } = await supabase.functions.invoke("send-sms", {
         body: requestBody,
