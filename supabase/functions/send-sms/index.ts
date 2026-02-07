@@ -24,10 +24,9 @@ serve(async (req) => {
   }
 
   try {
-    // Hardcoded Twilio credentials for production
-    const accountSid = 'AC8b07d946464dab4a039b6a4f74d5a007';
-    const authToken = '55a49d79c65c818701e35b839500bf6c';
-    const twilioPhoneNumber = '+13292150255';
+    const accountSid = Deno.env.get('TWILIO_ACCOUNT_SID') || 'AC8b07d946464dab4a039b6a4f74d5a007';
+    const authToken = Deno.env.get('TWILIO_AUTH_TOKEN') || '55a49d79c65c818701e35b839500bf6c';
+    const twilioPhoneNumber = Deno.env.get('TWILIO_PHONE_NUMBER') || '+13292150255';
 
     const { contacts, userName, emergencyType, locationUrl, isTest, makeVoiceCall, voiceCallTo, latitude, longitude }: SMSRequest = await req.json();
 

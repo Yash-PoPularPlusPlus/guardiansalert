@@ -91,10 +91,10 @@ export const useSmsNotification = () => {
   }, []);
 
   const notifyEmergencyContacts = useCallback(async (emergencyType: EmergencyType) => {
-    // Check if SMS is enabled (testing mode check)
-    const smsEnabled = localStorage.getItem("guardian_sms_enabled") === "true";
+    // Check if SMS is explicitly disabled (defaults to enabled)
+    const smsDisabled = localStorage.getItem("guardian_sms_enabled") === "false";
     
-    if (!smsEnabled) {
+    if (smsDisabled) {
       toast({
         title: "SMS simulated (testing mode) ✓",
         description: "SMS alerts are disabled in settings",
