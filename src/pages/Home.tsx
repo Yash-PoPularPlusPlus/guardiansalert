@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import { Shield, Mic, CheckCircle, Users, MessageSquare, Clock, AlertTriangle } from "lucide-react";
+import { Shield, Mic, CheckCircle, Users, MessageSquare, Clock, AlertTriangle, Brain } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -38,6 +38,7 @@ import {
   formatDetectionLabel,
   type DetectionLogEntry 
 } from "@/utils/detectionLog";
+import { AIClassificationResult, AIDetectionStatus } from "@/hooks/useAIAlarmDetection";
 
 const DISABILITY_LABELS: Record<DisabilityType, string> = {
   deaf: "Deaf/Hard of Hearing",
@@ -57,6 +58,8 @@ const Home = () => {
   const [disabilities, setDisabilitiesState] = useState<DisabilityType[]>([]);
   const [micPermissionDenied, setMicPermissionDenied] = useState(false);
   const [isOnline, setIsOnline] = useState(navigator.onLine);
+  const [aiClassification, setAiClassification] = useState<AIClassificationResult>(null);
+  const [aiStatus, setAiStatus] = useState<AIDetectionStatus>("initializing");
   const { alertState, triggerPersonalizedAlert, dismissAlert } = usePersonalizedAlert();
   const { notifyEmergencyContacts, resetSmsFlag } = useSmsNotification();
   const audioMonitorRef = useRef<AudioMonitorHandle>(null);
@@ -210,6 +213,11 @@ const Home = () => {
         ref={audioMonitorRef}
         enabled={isComplete && !alertState.isActive} 
         onAlertTriggered={handleAutoDetectedAlert}
+        onAIClassification={(result, status) => {
+          setAiClassification(result);
+          setAiStatus(status);
+        }}
+        onFireAlarmConfirmed={() => handleAutoDetectedAlert("fire")}
       />
       
       <div className="min-h-screen bg-background flex flex-col">
@@ -243,7 +251,7 @@ const Home = () => {
               <div className="flex flex-col items-center text-center space-y-3">
                 <div className="relative">
                   <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center">
-                    <Mic className="w-8 h-8 text-primary" />
+                    <Brain className="w-8 h-8 text-primary" />
                   </div>
                   {/* Live waveform */}
                   <div className="absolute -right-2 -bottom-1">
@@ -251,11 +259,40 @@ const Home = () => {
                   </div>
                 </div>
                 <div>
-                  <h2 className="text-xl font-bold text-foreground">Monitoring Status: Active</h2>
+                  <h2 className="text-xl font-bold text-foreground">
+                    {aiStatus === "initializing" 
+                      ? "AI Initializing..." 
+                      : aiStatus === "idle" || aiStatus === "detecting"
+                        ? "AI Monitoring: Active"
+                        : aiStatus === "error"
+                          ? "AI Error"
+                          : "AI Monitoring: Paused"
+                    }
+                  </h2>
                   <p className="text-sm text-muted-foreground mt-1">
-                    Listening for natural disasters and emergency sounds
+                    {aiStatus === "initializing" 
+                      ? "Loading AI sound classification model..."
+                      : aiStatus === "idle" || aiStatus === "detecting"
+                        ? "AI-powered detection for emergency sounds"
+                        : aiStatus === "error"
+                          ? "Unable to initialize AI detection"
+                          : "Microphone access required"
+                    }
                   </p>
                 </div>
+                
+                {/* AI Classification Display */}
+                {aiClassification && (aiStatus === "idle" || aiStatus === "detecting") && (
+                  <div className="flex items-center gap-2 px-3 py-1.5 bg-primary/10 rounded-full">
+                    <span className="text-sm font-medium text-primary">
+                      AI: {aiClassification.categoryName}
+                    </span>
+                    <Badge variant="secondary" className="text-xs">
+                      {Math.round(aiClassification.score * 100)}%
+                    </Badge>
+                  </div>
+                )}
+                
                 <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
                   <Clock className="w-3.5 h-3.5" />
                   <span>Last checked: {lastChecked}</span>

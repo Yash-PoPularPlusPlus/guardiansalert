@@ -1,83 +1,156 @@
 import { useEffect, useState, forwardRef, useImperativeHandle, useRef, useCallback } from "react";
-import { Mic, MicOff, AlertCircle, Flame, Shield, Clock, RotateCcw } from "lucide-react";
-import { useFireAlarmDetection } from "@/hooks/useFireAlarmDetection";
-import { unlockAudioForEmergency } from "@/components/AudioAlert";
+import { Mic, MicOff, AlertCircle, Flame, Shield, Brain, Loader2 } from "lucide-react";
+import { useAIAlarmDetection, AIClassificationResult, AIDetectionStatus } from "@/hooks/useAIAlarmDetection";
 import { toast } from "@/hooks/use-toast";
 
 interface AudioMonitorProps {
   enabled: boolean;
   onAlertTriggered: (type: "fire") => void;
+  onAIClassification?: (result: AIClassificationResult, status: AIDetectionStatus) => void;
+  onFireAlarmConfirmed?: () => void;
 }
 
 export interface AudioMonitorHandle {
   resetCooldown: () => void;
 }
 
-const AudioMonitor = forwardRef<AudioMonitorHandle, AudioMonitorProps>(({ enabled, onAlertTriggered }, ref) => {
+// Fire alarm related categories from YAMNet
+const FIRE_ALARM_CATEGORIES = [
+  "Fire alarm",
+  "Smoke detector",
+  "Alarm",
+  "Siren",
+  "Civil defense siren",
+  "Buzzer"
+];
+
+const CONFIDENCE_THRESHOLD = 0.7;
+const REQUIRED_CONSECUTIVE_DETECTIONS = 4;
+
+const AudioMonitor = forwardRef<AudioMonitorHandle, AudioMonitorProps>(({ 
+  enabled, 
+  onAlertTriggered,
+  onAIClassification,
+  onFireAlarmConfirmed 
+}, ref) => {
   const [showDetectionAlert, setShowDetectionAlert] = useState(false);
+  const [consecutiveDetections, setConsecutiveDetections] = useState(0);
+  const [hasTriggered, setHasTriggered] = useState(false);
   
-  // Store callback in ref - update SYNCHRONOUSLY during render (not in useEffect)
-  // This prevents race conditions where detection triggers before useEffect runs
+  // Refs for callbacks
   const onAlertTriggeredRef = useRef(onAlertTriggered);
-  onAlertTriggeredRef.current = onAlertTriggered; // Always current
+  const onFireAlarmConfirmedRef = useRef(onFireAlarmConfirmed);
+  onAlertTriggeredRef.current = onAlertTriggered;
+  onFireAlarmConfirmedRef.current = onFireAlarmConfirmed;
 
-  // INSTANT callback - no delays, no toasts, just trigger immediately
-  const handleFireAlarmDetected = useCallback(() => {
-    // CRITICAL: Trigger alert IMMEDIATELY - no logging, no delays
-    unlockAudioForEmergency();
-    onAlertTriggeredRef.current("fire");
-    setShowDetectionAlert(true);
-    setTimeout(() => setShowDetectionAlert(false), 2000);
+  // Use the AI detection hook
+  const { status: aiStatus, lastClassification, error: aiError } = useAIAlarmDetection({ enabled });
+
+  // Reset cooldown function
+  const resetCooldown = useCallback(() => {
+    setHasTriggered(false);
+    setConsecutiveDetections(0);
+    setShowDetectionAlert(false);
   }, []);
-
-  const { 
-    isListening, 
-    error, 
-    permissionDenied, 
-    detectionStatus, 
-    detectionProgress,
-    cooldownRemaining,
-    resetCooldown
-  } = useFireAlarmDetection({
-    onFireAlarmDetected: handleFireAlarmDetected,
-    enabled,
-  });
 
   // Expose resetCooldown to parent via ref
   useImperativeHandle(ref, () => ({
     resetCooldown
   }), [resetCooldown]);
 
-  // Show error toast if permission denied
+  // Monitor AI classification results
   useEffect(() => {
-    if (permissionDenied && error) {
+    if (!lastClassification || hasTriggered) return;
+
+    // Forward classification to parent
+    if (onAIClassification) {
+      onAIClassification(lastClassification, aiStatus);
+    }
+
+    // Check if it's a fire alarm category
+    const isFireAlarm = FIRE_ALARM_CATEGORIES.some(
+      category => lastClassification.categoryName.toLowerCase().includes(category.toLowerCase())
+    ) && lastClassification.score >= CONFIDENCE_THRESHOLD;
+
+    if (isFireAlarm) {
+      setConsecutiveDetections(prev => {
+        const newCount = prev + 1;
+        
+        // Check if we've reached the threshold for confirmed detection
+        if (newCount >= REQUIRED_CONSECUTIVE_DETECTIONS && !hasTriggered) {
+          setHasTriggered(true);
+          setShowDetectionAlert(true);
+          
+          // Trigger the alert
+          onAlertTriggeredRef.current("fire");
+          onFireAlarmConfirmedRef.current?.();
+          
+          setTimeout(() => setShowDetectionAlert(false), 2000);
+        }
+        
+        return newCount;
+      });
+    } else {
+      // Reset consecutive count if not a fire alarm
+      setConsecutiveDetections(0);
+    }
+  }, [lastClassification, aiStatus, hasTriggered, onAIClassification]);
+
+  // Show error toast if there's an AI error
+  useEffect(() => {
+    if (aiError && aiStatus === "error") {
       toast({
-        title: "Microphone Access Required",
-        description: error,
+        title: "AI Detection Error",
+        description: aiError,
         variant: "destructive",
       });
-    } else if (error && !permissionDenied) {
+    } else if (aiStatus === "permission_denied") {
       toast({
-        title: "Audio Monitor Error",
-        description: error,
+        title: "Microphone Access Required",
+        description: "Please enable microphone access for AI sound detection.",
         variant: "destructive",
       });
     }
-  }, [error, permissionDenied]);
+  }, [aiError, aiStatus]);
 
   // Determine display state
-  const isDetecting = detectionStatus === "detecting" || showDetectionAlert;
-  const isConfirmed = detectionStatus === "confirmed" || showDetectionAlert;
-  const isCooldown = detectionStatus === "cooldown";
+  const isDetecting = consecutiveDetections > 0;
+  const isConfirmed = showDetectionAlert;
+  const progress = Math.min(100, (consecutiveDetections / REQUIRED_CONSECUTIVE_DETECTIONS) * 100);
 
-  const handleResetClick = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    resetCooldown();
-    toast({
-      title: "Monitoring resumed",
-      description: "Fire alarm detection is now active again.",
-    });
+  // Get status icon and text
+  const getStatusDisplay = () => {
+    if (isConfirmed) {
+      return { icon: <Flame className="w-5 h-5 animate-pulse" />, text: "Fire alarm detected!" };
+    }
+    if (isDetecting) {
+      return { icon: <Flame className="w-5 h-5 animate-pulse" />, text: "Analyzing sound..." };
+    }
+    switch (aiStatus) {
+      case "initializing":
+        return { icon: <Loader2 className="w-5 h-5 animate-spin" />, text: "AI Initializing..." };
+      case "idle":
+        return { 
+          icon: (
+            <div className="relative">
+              <Brain className="w-5 h-5" />
+              <span className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-green-400 rounded-full animate-pulse" />
+            </div>
+          ), 
+          text: "AI Listening..." 
+        };
+      case "detecting":
+        return { icon: <Mic className="w-5 h-5" />, text: "Processing..." };
+      case "error":
+        return { icon: <AlertCircle className="w-5 h-5" />, text: "AI Error" };
+      case "permission_denied":
+        return { icon: <MicOff className="w-5 h-5" />, text: "Mic Denied" };
+      default:
+        return { icon: <MicOff className="w-5 h-5" />, text: "Paused" };
+    }
   };
+
+  const statusDisplay = getStatusDisplay();
 
   return (
     <div className="fixed top-4 right-4 z-40">
@@ -89,71 +162,33 @@ const AudioMonitor = forwardRef<AudioMonitorHandle, AudioMonitorProps>(({ enable
             ? "bg-red-600/90 text-white" 
             : isDetecting
               ? "bg-amber-500/90 text-white"
-              : isCooldown
-                ? "bg-blue-600/90 text-white"
-                : error 
-                  ? "bg-destructive/80 text-destructive-foreground"
+              : aiStatus === "error" || aiStatus === "permission_denied"
+                ? "bg-destructive/80 text-destructive-foreground"
+                : aiStatus === "initializing"
+                  ? "bg-blue-600/90 text-white"
                   : "bg-black/70 text-white"
           }
         `}
       >
         {/* Main status row */}
         <div className="flex items-center gap-2">
-          {isConfirmed ? (
-            <>
-              <Flame className="w-5 h-5 animate-pulse" />
-              <span className="font-semibold">Fire alarm detected!</span>
-            </>
-          ) : isDetecting ? (
-            <>
-              <Flame className="w-5 h-5 animate-pulse" />
-              <span className="font-medium">Analyzing sound...</span>
-            </>
-          ) : isCooldown ? (
-            <>
-              <Clock className="w-5 h-5" />
-              <span className="font-medium">Cooldown: {cooldownRemaining}s</span>
-            </>
-          ) : isListening ? (
-            <>
-              <div className="relative">
-                <Mic className="w-5 h-5" />
-                <span className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-green-400 rounded-full animate-pulse" />
-              </div>
-              <span className="font-medium">Listening...</span>
-            </>
-          ) : error ? (
-            <>
-              <AlertCircle className="w-5 h-5" />
-              <span className="font-medium">Mic unavailable</span>
-            </>
-          ) : (
-            <>
-              <MicOff className="w-5 h-5" />
-              <span className="font-medium">Paused</span>
-            </>
-          )}
+          {statusDisplay.icon}
+          <span className="font-medium">{statusDisplay.text}</span>
         </div>
 
-        {/* Secondary info row */}
-        {isListening && !isDetecting && !isConfirmed && !isCooldown && (
-          <div className="flex items-center gap-1.5 text-white/70">
-            <Shield className="w-3 h-3" />
-            <span>Monitoring for fire alarms</span>
+        {/* AI Classification result */}
+        {lastClassification && aiStatus === "idle" && !isDetecting && !isConfirmed && (
+          <div className="flex items-center gap-1.5 text-white/70 text-[10px]">
+            <span>Detected: {lastClassification.categoryName}</span>
+            <span className="text-white/50">({Math.round(lastClassification.score * 100)}%)</span>
           </div>
         )}
 
-        {/* Cooldown info with reset button */}
-        {isCooldown && (
-          <div className="flex items-center justify-between gap-2 mt-1">
-            <span className="text-white/70 text-[10px]">Alert triggered recently</span>
-            <button
-              onClick={handleResetClick}
-              className="flex items-center gap-1 px-2 py-1 bg-white/20 hover:bg-white/30 rounded-md transition-colors text-[10px] font-medium"
-            >
-              <RotateCcw className="w-3 h-3" />
-              Resume
-            </button>
+        {/* Secondary info row */}
+        {aiStatus === "idle" && !isDetecting && !isConfirmed && (
+          <div className="flex items-center gap-1.5 text-white/70">
+            <Shield className="w-3 h-3" />
+            <span>AI monitoring for emergencies</span>
           </div>
         )}
 
@@ -162,16 +197,16 @@ const AudioMonitor = forwardRef<AudioMonitorHandle, AudioMonitorProps>(({ enable
           <div className="w-full bg-white/20 rounded-full h-1 mt-1">
             <div 
               className="bg-white h-1 rounded-full transition-all duration-200"
-              style={{ width: `${detectionProgress}%` }}
+              style={{ width: `${progress}%` }}
             />
           </div>
         )}
 
         {/* Active status */}
-        {isListening && !error && !isDetecting && !isCooldown && (
+        {aiStatus === "idle" && !isDetecting && (
           <div className="flex items-center gap-1.5 text-white/50 text-[10px]">
             <span className="w-1.5 h-1.5 bg-green-400 rounded-full" />
-            <span>Active now</span>
+            <span>AI Active</span>
           </div>
         )}
       </div>
